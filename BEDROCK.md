@@ -193,6 +193,13 @@ repeat-transport decline stands, and the repeated-identical-call tail is dominat
 legitimate re-execution (files re-read after edits, release polling), which no exact
 predicate can distinguish from waste without judgment.
 
+Declined 2026-07-10 — a batch-transform (codemod) advisory: repeated identical
+(old_string, new_string) Edit pairs across >=2 files measured **1.1%** of edit chars on the
+build corpus (185 Edits, one 3x pattern — a config line copied to setting variants, not a
+refactor). Mechanical-vs-semantic edit classification beyond exact repetition is judgment;
+the spec-invoked path (model emits a sed/ast-grep/codemod spec, Bash executes) already
+covers the real class. Genealogy row "code transformation": served by composition.
+
 Declined 2026-07-10 — an "always beneficial" env-var layer: evaluated against the live
 corpus and the harness's own issue tracker. Raising BASH_MAX_OUTPUT_LENGTH (so captures see
 full bytes) measured 1 clipped capture in 400 (0.25%) and carries documented harness-side

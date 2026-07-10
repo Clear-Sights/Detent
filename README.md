@@ -69,6 +69,11 @@ Edit form routes through the harness's own documented seam instead: the pre hook
 condition of approval — before the client's validation. The Write form works at PreToolUse
 directly.)
 
+Content search over the store needs no index: objects are plain files, so
+`grep -rl 'needle' ~/.claude/detent_store/objects/` (or the Grep tool on that directory)
+finds any artifact that ever mentioned a string — then slice it back by address. The 1973
+primitive composes with the 2026 store; nothing new to learn or build.
+
 `/detent` (the one slash command) relays that trace verbatim — the human's way to ask
 "is the rod latched?" without trusting anyone's word for it.
 
