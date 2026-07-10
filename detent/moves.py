@@ -50,6 +50,10 @@ def _env_int(name: str, default: int) -> int:
 
 
 GREP_DEFAULT_HEAD_LIMIT = _env_int("DETENT_GREP_HEAD_LIMIT", 200)
+# The harness's own Bash cap: stdout longer than this reaches hooks ALREADY truncated (verified
+# live 2026-07-10: 44.8k arrived as exactly 30000 chars) while the harness persists the true
+# full bytes itself. Prefer-native: a capture at exactly this length must not claim "full".
+_BASH_NATIVE_CAP = _env_int("BASH_MAX_OUTPUT_LENGTH", 30_000)
 # Truncation must never invert its verb: for any config, output < input. The floor keeps the
 # threshold above the marker's worst case (~320 chars: two 20-digit counts, a line count, and
 # an address-bearing note citing a 64-hex artifact twice); the keep must be non-negative and
@@ -541,7 +545,10 @@ def response_capture_and_bound(event: dict[str, Any]) -> dict[str, Any] | None:
     out: dict[str, Any] = {}
     for key, value in response.items():
         if isinstance(value, str) and len(value) > BASH_TRUNCATE_THRESHOLD:
-            note = _captured_note(value, f"full {key}",
+            label = (f"capture at the native cap — true full output persists via the "
+                     f"harness's own path; addressed {key}"
+                     if len(value) >= _BASH_NATIVE_CAP else f"full {key}")
+            note = _captured_note(value, label,
                                   "full response captured in the detent store")
             out[key] = _head_tail(value, note)
         else:

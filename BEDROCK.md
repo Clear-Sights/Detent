@@ -184,6 +184,18 @@ proposed move whose replacement measures ~0 on the relevant corpus is not built,
 decision is recorded (see MEMOIZE's reroute and the reply-quote gate: both measured ~0 on the
 build corpus, both declined on the record rather than built as theater).
 
+**Prefer-native rule** (2026-07-10): where the harness already provides a deterministic path,
+Detent uses it, defers to it, or must be measurably better — never a duplicate. Pinned
+interplays, each verified live: Bash stdout above the harness's own cap (BASH_MAX_OUTPUT_LENGTH,
+default 30k) reaches hooks pre-truncated while the harness persists the true full bytes — so
+Detent serves the 8k–30k tier (where native does nothing and every byte would enter context),
+labels at-cap captures honestly instead of claiming "full", and leaves the >30k tier's full
+bytes to the native persisted-output path. Grep/Glob/Read/LSP are the native deterministic
+lookups — Detent bounds them, never replaces them. Slash commands and skills are native
+deterministic prompt-expansion — out of writ. jq/sed/python one-liners are native deterministic
+computation and formatting — the model should reach for them; a hook cannot force that choice,
+only the docs can teach it.
+
 **Done-bar** (the completion criterion, falsifiable): the bedrock is complete when nothing an
 agent does that can be made deterministic isn't — every act the model still performs is
 reasoning or a first emission — and when going from one thread to any number requires no
