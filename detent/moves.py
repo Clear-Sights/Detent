@@ -869,11 +869,8 @@ MOVES: dict[tuple[str, str | None], Any] = {
 def lookup(event_name, tool_name):
     """The total lookup: exact row, else the event's wildcard row, else (). Two tiers only —
     quotient membership beyond that lives INSIDE moves as exact predicates over tool_name
-    (see _is_world_tool). Returns the cell-function SEQUENCE for the key; a bare callable
-    (tests inject these) is normalized to a one-tuple."""
+    (see _is_world_tool). Returns the cell-function SEQUENCE for the key."""
     fns = MOVES.get((event_name, tool_name))
     if fns is None and tool_name is not None:
         fns = MOVES.get((event_name, "*"))
-    if fns is None:
-        return ()
-    return (fns,) if callable(fns) else fns
+    return fns or ()
