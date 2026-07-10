@@ -1,7 +1,7 @@
 """Read-only access to a certified/observed fact, from ONE of a small named set of sources --
-BY SHAPE, never by import (LAW.md's own rule 5, restated for this coupling: Lever and Makoto are
-separate faculties in separate repos; Lever never `import makoto`, and never writes to Makoto's
-store). See docs/CHAIN-FORMAT-v1.md -- this module is that spec's Lever-side implementation,
+BY SHAPE, never by import (LAW.md's own rule 5, restated for this coupling: Detent and Makoto are
+separate faculties in separate repos; Detent never `import makoto`, and never writes to Makoto's
+store). See docs/CHAIN-FORMAT-v1.md -- this module is that spec's Detent-side implementation,
 kept byte-consistent with makoto-dev's `ledger.py` via the golden vectors in
 tests/vectors/chain_v1/, not via a shared package.
 
@@ -16,7 +16,7 @@ a caller (a move, a test) asks for the latest fact of a `kind`; this module pick
     hook payload), read DIRECTLY for the most recent test-runner Bash tool_use/tool_result pair.
     Trust here is "the transcript is host-written ground truth" (the exact non-forgeable-turn
     contract Makoto's own `ackblock.py` relies on for the SAME reason) -- there is no hash chain
-    to walk when none exists; this is the "one hour solo" value Lever has with zero install.
+    to walk when none exists; this is the "one hour solo" value Detent has with zero install.
 
 Auto-selected by `latest_verified_fact` (chain present -> "chain"; absent -> "transcript"); a
 caller may force one explicitly via `source=`. A third source is one new reader function plus
@@ -62,7 +62,7 @@ def _row_hash(prev_hash: str, row: dict) -> str:
 
 
 def verify_chain(*, root: Optional[Path] = None, name: str = "chain") -> Optional[int]:
-    """CHAIN-FORMAT v1's verification contract, Lever's own copy. None = fully intact
+    """CHAIN-FORMAT v1's verification contract, Detent's own copy. None = fully intact
     (including vacuously-absent/empty); else the 0-based index of the first broken row. Golden
     vectors (tests/vectors/chain_v1/) pin this against Makoto's own implementation."""
     target = (root or _state_dir()) / f"{name}.jsonl"

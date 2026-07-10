@@ -18,19 +18,19 @@ REPO = Path(__file__).resolve().parent.parent
 
 @pytest.fixture(autouse=True)
 def _iso(tmp_path, monkeypatch):
-    monkeypatch.setenv("LEVER_STORE_DIR", str(tmp_path / "store"))
+    monkeypatch.setenv("DETENT_STORE_DIR", str(tmp_path / "store"))
 
 
 def _dispatch(event: dict) -> dict:
     env = {**os.environ, "PYTHONPATH": str(REPO)}
-    r = subprocess.run([sys.executable, "-m", "lever.dispatch"],
+    r = subprocess.run([sys.executable, "-m", "detent.dispatch"],
                        input=json.dumps(event), capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr
     return json.loads(r.stdout) if r.stdout.strip() else {}
 
 
 def test_punchcard_certifies():
-    from lever.cells import CELLS, coverage_failures
+    from detent.cells import CELLS, coverage_failures
     assert sorted(CELLS) == list(range(1, 21))
     assert coverage_failures() == []
 
@@ -56,7 +56,7 @@ def test_dispatch_silent_on_foreign_event():
 
 
 def test_store_round_trips(tmp_path):
-    from lever import store
+    from detent import store
     addr = store.put(b"artifact bytes")
     assert store.get(addr) == b"artifact bytes"
     dst = tmp_path / "out.bin"
@@ -66,6 +66,6 @@ def test_store_round_trips(tmp_path):
 
 def test_status_runtime_exits_clean():
     env = {**os.environ, "PYTHONPATH": str(REPO)}
-    r = subprocess.run([sys.executable, "-m", "lever"], capture_output=True, text=True, env=env)
+    r = subprocess.run([sys.executable, "-m", "detent"], capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "coverage:" in r.stdout

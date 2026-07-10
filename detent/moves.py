@@ -6,8 +6,8 @@ or ⊥ (None: no opinion, the resting state per LAW.md). Capture is the one perm
 monotone writes into the store and nowhere else (LAW two-tier). No model, no network, no other
 writes, ever. WHEN is not an axis — it is which substrate π reads (event / workspace / ledger).
 WHERE is not hand-declared — each move carries its (dom π, cod α) station pairs via @_flows
-and lever/cells.py derives the punchcard's move rows from them. One named π asymmetry:
-`_testrun_fact` reads via lever/facts.py (Makoto's chain BY SHAPE — never `import makoto` — or
+and detent/cells.py derives the punchcard's move rows from them. One named π asymmetry:
+`_testrun_fact` reads via detent/facts.py (Makoto's chain BY SHAPE — never `import makoto` — or
 the session transcript): deterministic and zero-cost, but not a pure function of the event.
 
 tests/test_laws.py holds every move to three universal laws at once: guard totality (malformed
@@ -26,19 +26,19 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from lever.contract import Block, Deny
-from lever.facts import latest_verified_fact
-from lever.store import firings as store_firings
-from lever.store import get as store_get
-from lever.store import has as store_has
-from lever.store import put as store_put
-from lever.store import put_file as store_put_file
-from lever.store import record as store_record
+from detent.contract import Block, Deny
+from detent.facts import latest_verified_fact
+from detent.store import firings as store_firings
+from detent.store import get as store_get
+from detent.store import has as store_has
+from detent.store import put as store_put
+from detent.store import put_file as store_put_file
+from detent.store import record as store_record
 
 # ── generators ─────────────────────────────────────────────────────────────────────────────
 # Every π is TOTAL: a wrong type or unreadable substrate is ⊥ (None / empty), never a raise —
 # so every guard composed on top is total by construction (law 1). Every threshold constant is
-# env-overridable (LEVER_*, read once at import): configuration, not judgment — the predicate
+# env-overridable (DETENT_*, read once at import): configuration, not judgment — the predicate
 # stays exact either way, only the operand moves.
 
 
@@ -49,18 +49,18 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
-GREP_DEFAULT_HEAD_LIMIT = _env_int("LEVER_GREP_HEAD_LIMIT", 200)
+GREP_DEFAULT_HEAD_LIMIT = _env_int("DETENT_GREP_HEAD_LIMIT", 200)
 # Truncation must never invert its verb: for any config, output < input. The floor keeps the
 # threshold above the marker's worst case (~320 chars: two 20-digit counts, a line count, and
 # an address-bearing note citing a 64-hex artifact twice); the keep must be non-negative and
 # leave marker room, else it clamps to threshold//4 (floor 700 keeps that clamp consistent:
 # 2*(700//4) <= 700-320).
-BASH_TRUNCATE_THRESHOLD = max(_env_int("LEVER_TRUNCATE_THRESHOLD", 8_000), 700)
-BASH_TRUNCATE_KEEP = _env_int("LEVER_TRUNCATE_KEEP", 2_000)
+BASH_TRUNCATE_THRESHOLD = max(_env_int("DETENT_TRUNCATE_THRESHOLD", 8_000), 700)
+BASH_TRUNCATE_KEEP = _env_int("DETENT_TRUNCATE_KEEP", 2_000)
 if not 0 <= 2 * BASH_TRUNCATE_KEEP <= BASH_TRUNCATE_THRESHOLD - 320:
     BASH_TRUNCATE_KEEP = BASH_TRUNCATE_THRESHOLD // 4
-READ_LARGE_FILE_BYTES = _env_int("LEVER_READ_LARGE_BYTES", 100_000)
-READ_DEFAULT_LIMIT = _env_int("LEVER_READ_DEFAULT_LIMIT", 2_000)
+READ_LARGE_FILE_BYTES = _env_int("DETENT_READ_LARGE_BYTES", 100_000)
+READ_DEFAULT_LIMIT = _env_int("DETENT_READ_DEFAULT_LIMIT", 2_000)
 
 
 def _input(event: dict[str, Any]) -> dict[str, Any]:
@@ -201,8 +201,8 @@ def _captured_note(value: str, label: str, fallback: str) -> str:
         addr = store_put(value.encode())
     except (OSError, ValueError):
         return fallback
-    return (f"{value.count(chr(10)) + 1} lines; {label}: lever://{addr} — "
-            f"python3 -m lever.store slice {addr} <start> <end>")
+    return (f"{value.count(chr(10)) + 1} lines; {label}: detent://{addr} — "
+            f"python3 -m detent.store slice {addr} <start> <end>")
 
 
 @_flows("WORKSPACE→CONTEXT")
@@ -292,7 +292,7 @@ def subagent_warm_start(event: dict[str, Any]) -> str | None:
 
     Does NOT touch: a spawn when there is nothing recorded yet (silence, the resting state)."""
     return _testrun_fact(
-        event, "[lever: the most recently recorded test-runner output this session "
+        event, "[detent: the most recently recorded test-runner output this session "
                "({provenance}) was:\n{value}]")
 
 
@@ -308,7 +308,7 @@ def post_compact_re_inject(event: dict[str, Any]) -> str | None:
     if event.get("source") != "compact":
         return None
     return _testrun_fact(
-        event, "[lever: post-compaction re-inject -- the most recently recorded test-runner "
+        event, "[detent: post-compaction re-inject -- the most recently recorded test-runner "
                "output this session ({provenance}) was:\n{value}]")
 
 
@@ -375,13 +375,13 @@ def upload_capture_on_read(event: dict[str, Any]) -> None:
     """PostToolUse / Read (capture): a user upload becomes an addressable artifact the first
     time it is read — the harness fires no upload event, so first-read is the earliest
     deterministic capture point. Exact path-component containment (the uploads directory,
-    env-overridable via LEVER_UPLOADS_DIR), no guessing.
+    env-overridable via DETENT_UPLOADS_DIR), no guessing.
 
     Does NOT touch: any non-upload path; fails open on storage errors."""
     file_path = _str_of(_input(event), "file_path")
     if not file_path:
         return None
-    uploads_root = Path(os.environ.get("LEVER_UPLOADS_DIR")
+    uploads_root = Path(os.environ.get("DETENT_UPLOADS_DIR")
                         or Path.home() / ".claude" / "uploads")
     try:
         if not Path(file_path).resolve().is_relative_to(uploads_root.resolve()):
@@ -421,7 +421,7 @@ def response_capture_and_bound(event: dict[str, Any]) -> dict[str, Any] | None:
     for key, value in response.items():
         if isinstance(value, str) and len(value) > BASH_TRUNCATE_THRESHOLD:
             note = _captured_note(value, f"full {key}",
-                                  "full response captured in the lever store")
+                                  "full response captured in the detent store")
             out[key] = _head_tail(value, note)
         else:
             out[key] = value
@@ -453,16 +453,16 @@ def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
     replies = ([r for r in rows if r.get("op") == "reply" and r.get("prompt_id") == prior_id]
                if prior_id is not None else [])  # None==None must never join A's repeat to B's reply
     if replies:
-        return (f"[lever: this exact prompt was submitted before; the prior reply is artifact "
-                f"lever://{replies[-1]['address']} — `python3 -m lever.store get <address>` to "
+        return (f"[detent: this exact prompt was submitted before; the prior reply is artifact "
+                f"detent://{replies[-1]['address']} — `python3 -m detent.store get <address>` to "
                 f"reuse it instead of regenerating]")
-    return "[lever: this exact prompt was submitted before (no captured reply on record)]"
+    return "[detent: this exact prompt was submitted before (no captured reply on record)]"
 
 
 @_flows("CONTEXT→STORE", "CONTEXT→USER")
 def stop_capture_and_cite_check(event: dict[str, Any]) -> Block | None:
     """Stop: capture the reply as an artifact (keyed to prompt_id, feeding the prompt cache),
-    then hold the reply to its checkable slice: any lever:// address it cites must actually
+    then hold the reply to its checkable slice: any detent:// address it cites must actually
     resolve — an unresolvable citation is a fact without a receipt, and the turn is blocked
     with the exact dangling address named. Honors stop_hook_active (the documented anti-loop
     flag).
@@ -485,14 +485,14 @@ def stop_capture_and_cite_check(event: dict[str, Any]) -> Block | None:
     missing = sorted(addr for addr in cited if not store_has(addr))
     if missing:
         return Block(f"reply cites store artifact(s) that do not resolve: "
-                     f"{', '.join('lever://' + a for a in missing[:3])} — correct the citation "
+                     f"{', '.join('detent://' + a for a in missing[:3])} — correct the citation "
                      f"or store the artifact before finishing.")
     return None
 
 
 # The declared citation grammar — shared by the Stop gate (resolve-or-block) and the display
 # materializer (render-on-screen). One regex, two sides of the same contract.
-_CITATION_RX = re.compile(r"lever://([0-9a-f]{64})\b")
+_CITATION_RX = re.compile(r"detent://([0-9a-f]{64})\b")
 
 
 @_flows("WORKSPACE→STORE", "WORLD→STORE")
@@ -540,7 +540,7 @@ def compact_summary_capture(event: dict[str, Any]) -> None:
 @_flows("STORE→USER")
 def display_materialize_citations(event: dict[str, Any]) -> str | None:
     """MessageDisplay (display tier — cell 13, STORE→USER): reply-by-address, rendered. When
-    the model's streamed delta cites lever://<addr> and the artifact resolves, the DISPLAY
+    the model's streamed delta cites detent://<addr> and the artifact resolves, the DISPLAY
     shows the bytes beside the address — the model emits reasoning plus addresses; machinery
     renders content. Display-only by protocol: the transcript and what the model sees keep the
     original (the harness guarantees this), and a failed hook displays the original text, so
@@ -561,7 +561,7 @@ def display_materialize_citations(event: dict[str, Any]) -> str | None:
         except (KeyError, OSError, ValueError):
             return match.group(0)
         if len(data) > BASH_TRUNCATE_THRESHOLD:
-            data = _head_tail(data, f"full artifact: lever://{addr}")
+            data = _head_tail(data, f"full artifact: detent://{addr}")
         return f"{match.group(0)} ⟦{data}⟧"
 
     out = _CITATION_RX.sub(render, delta)

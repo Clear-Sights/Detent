@@ -1,5 +1,5 @@
 """The pivot. One hook entrypoint, wired to every event named in moves.MOVES (see
-hooks/lever-hook.json). Reads the event, looks up (hook_event_name, tool_name) in moves.MOVES,
+hooks/detent-hook.json). Reads the event, looks up (hook_event_name, tool_name) in moves.MOVES,
 and — if a move fires — places its return value in whichever envelope shape that event type
 supports. This module knows the protocol; moves.py knows nothing about it (that separation is
 deliberate: a move's tests never need to know where in the JSON envelope its output lands).
@@ -19,7 +19,7 @@ A move's own return TYPE (dict / Deny / str) matches the shape its registered ev
 dispatch picks the envelope by event name and return TYPE, never by inspecting a dict's content.
 
 Never initiates. If nothing in the table matches, or a move returns None, this emits {} — the
-harness treats an empty response as "no opinion," exactly the lever's resting state. A move CAN
+harness treats an empty response as "no opinion," exactly the detent's resting state. A move CAN
 gate a call now (DENY) — that was always within LAW.md's own law (§2.1), just unimplemented until
 a move needed it; what dispatch still never does is invent a decision beyond what a move computed,
 or block on anything outside a move registered in MOVES and a hook event the harness already fired.
@@ -29,8 +29,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from lever.contract import BLOCK_CAPABLE, DENY_CAPABLE, Block, Deny, emit, read_event
-from lever.moves import lookup
+from detent.contract import BLOCK_CAPABLE, DENY_CAPABLE, Block, Deny, emit, read_event
+from detent.moves import lookup
 
 # REWRITE events: a move's dict return goes under this key.
 _REWRITE_ENVELOPE_KEY = {
@@ -63,13 +63,13 @@ def route(event: dict[str, Any]) -> dict[str, Any]:
         if hook_event_name not in BLOCK_CAPABLE:
             raise RuntimeError(
                 f"a move for {hook_event_name!r} returned Block, but {hook_event_name!r} is not "
-                f"in BLOCK_CAPABLE -- a Lever wiring bug, not a data problem.")
+                f"in BLOCK_CAPABLE -- a Detent wiring bug, not a data problem.")
         return {"decision": "block", "reason": replacement.reason}
     if isinstance(replacement, Deny):
         if hook_event_name not in DENY_CAPABLE:
             raise RuntimeError(
                 f"a move for {hook_event_name!r} returned Deny, but {hook_event_name!r} is not "
-                f"in DENY_CAPABLE -- this is a Lever wiring bug (MOVES table registered a move "
+                f"in DENY_CAPABLE -- this is a Detent wiring bug (MOVES table registered a move "
                 f"against an event whose protocol can't express a deny), not a data problem.")
         return {"hookSpecificOutput": {"hookEventName": hook_event_name,
                                        "permissionDecision": "deny",
@@ -88,18 +88,18 @@ def main() -> int:
     try:
         event = read_event()
     except ValueError as e:
-        print(f"lever.dispatch: {e}", file=sys.stderr)
+        print(f"detent.dispatch: {e}", file=sys.stderr)
         emit({})  # malformed input is never a reason to block the harness — fail open, silent,
         return 0  # but stdout must still be the valid-empty-response the harness expects
     try:
         result = route(event)
     except Exception as e:
-        # route() raising is always a Lever wiring bug (e.g. Deny returned outside DENY_CAPABLE),
+        # route() raising is always a Detent wiring bug (e.g. Deny returned outside DENY_CAPABLE),
         # never external data -- but this module's own contract ("this emits {} ... the harness
         # treats an empty response as 'no opinion'") has to hold even then. Loud to stderr (a
         # developer sees it, a test can assert on it), safe to stdout (the harness never sees a
         # broken response) -- the same fail-loud-then-fail-safe split read_event() already uses.
-        print(f"lever.dispatch: move raised {e!r}", file=sys.stderr)
+        print(f"detent.dispatch: move raised {e!r}", file=sys.stderr)
         emit({})
         return 0
     emit(result)

@@ -2,7 +2,7 @@
 
 Source: https://code.claude.com/docs/en/hooks (Anthropic's own documentation — not the
 March 2026 source-map leak, which this project deliberately does not use; see the dev repo's docs/archive/PROVENANCE.md).
-This is the finite, versioned event taxonomy the harness already commits to. Lever's job is never
+This is the finite, versioned event taxonomy the harness already commits to. Detent's job is never
 to guess at it — only to read what's already true here and act. If a future harness version adds,
 renames, or removes an event, this file is the one place that changes; nothing below should ever
 need to widen its own scope to compensate.
@@ -30,7 +30,7 @@ KNOWN_EVENTS = frozenset({
 })
 
 # Events whose hookSpecificOutput supports a rewrite (updatedInput / updatedToolOutput) rather
-# than only advisory additionalContext. This is Lever's primary mechanism — see LAW.md.
+# than only advisory additionalContext. This is Detent's primary mechanism — see LAW.md.
 #
 # PermissionRequest included: hookSpecificOutput.decision.updatedInput substitutes the actual
 # tool input before it executes, the same functional shape as PreToolUse's updatedInput (FABLE
@@ -60,7 +60,7 @@ class Deny:
 
 
 # Events supporting the documented top-level {"decision": "block", "reason": ...} envelope that
-# Lever registers moves against (the docs list more; this names only what MOVES uses — widen it
+# Detent registers moves against (the docs list more; this names only what MOVES uses — widen it
 # the same way DENY_CAPABLE would be widened, with a live-doc citation).
 BLOCK_CAPABLE = frozenset({"Stop", "UserPromptSubmit"})
 
@@ -87,7 +87,7 @@ def read_event(stream=None) -> dict[str, Any]:
 
 def emit(output: dict[str, Any] | None, stream=None) -> None:
     """Write the hook's JSON stdout response. An empty/None output means: no opinion, pass
-    through unchanged — Lever's default state is silence, per its own law."""
+    through unchanged — Detent's default state is silence, per its own law."""
     out = stream or sys.stdout
     out.write(json.dumps(output or {}))
     out.write("\n")

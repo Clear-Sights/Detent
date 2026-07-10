@@ -1,6 +1,6 @@
 # BEDROCK — the primitive layer, settled
 
-**Lever is one question: of everything an agent does, how much can be made reliably
+**Detent is one question: of everything an agent does, how much can be made reliably
 deterministic?** The LLM's irreducible remainder is reasoning — deciding, and emitting specs.
 Everything else — every read, write, move, transform, verification, and presentation of fact —
 is machinery. Generation is stochastic exactly once: the moment output exists it is an artifact
@@ -33,7 +33,7 @@ Every ordered pair of distinct stations is a cell. No self-loops, for two stated
 same-station *flow* (file→file copy, window→window brief) routes through `STORE`, so every
 transport gets hashing, verification, and memoization for free; and station-*internal*
 operations (context compaction, store GC) are owned by the station itself — the harness compacts
-CONTEXT, the store maintains STORE — they are not flows, and Lever mediates only flows.
+CONTEXT, the store maintains STORE — they are not flows, and Detent mediates only flows.
 Completeness is combinatorial, not curated — a script can verify every cell is **SERVED** (named
 machinery), a **HOLE** (named, unbuilt), or **VOID** (declared, with reason). Silence is not a
 state.
@@ -55,7 +55,7 @@ at SubagentStop hashes every subagent reply); the spawn-brief leg and the ad hoc
 | 1 | USER→CONTEXT | prompt enters; exact-match (or declared-normalized) hash check against STORE; hit → inject prior artifact, never regenerate | PARTIAL — `prompt_capture_and_cache` captures every prompt and advises with the prior reply artifact on an exact repeat; advisory tier only (no rewrite envelope exists here) |
 | 2 | USER→WORKSPACE | upload lands verbatim; hashed on arrival | SERVED (harness uploads); capture into STORE is cell 3 |
 | 3 | USER→STORE | uploads captured as artifacts | PARTIAL — `upload_capture_on_read` captures an upload the first time it is read (no upload event exists to fire earlier) |
-| 4 | USER→WORLD | owner's own outward channel | VOID — Lever never initiates; owner acts are not its writ |
+| 4 | USER→WORLD | owner's own outward channel | VOID — Detent never initiates; owner acts are not its writ |
 | 5 | WORLD→USER | external content directly to the human | VOID — no direct channel in this harness; routes STORE→USER |
 | 6 | WORLD→CONTEXT | fetched content entering the window: always bounded, always sliced | SERVED: `response_capture_and_bound` (the PostToolUse wildcard) bounds every oversized string field of EVERY tool's response, full bytes stay addressable |
 | 7 | WORLD→WORKSPACE | download-to-disk; fetch lands as file first, context reads a slice after | SERVED (curl/harness); the store-side half is closed — `response_capture_and_bound` lands every fetch in the STORE at first contact |
@@ -64,7 +64,7 @@ at SubagentStop hashes every subagent reply); the spawn-brief leg and the ad hoc
 | 10 | WORKSPACE→CONTEXT | bounded, addressed reads — the model never receives more than the declared slice | SERVED: `read_bound_unbounded_content`, `grep_bound_unbounded_content`; result-side bound `response_capture_and_bound` (wildcard — covers Bash and every future tool); shadow-path policed by `bash_deny_raw_grep_search` |
 | 11 | WORKSPACE→STORE | snapshot/capture: file state hashed into the store | SERVED: `store.put`/`put_file` (spec-invoked) + `edit_write_capture` (hook-fired on every Edit/Write) |
 | 12 | WORKSPACE→WORLD | push / deploy / publish from disk — verify-gated, never model-gated | PARTIAL at external ceiling: git-transport pushes bypass the hook layer by construction; the deterministic gate lives env-side (pre-push gitleaks), named and active |
-| 13 | STORE→USER | rendered artifact/report delivered to the human | SERVED: `display_materialize_citations` — reply-by-address, rendered at the display boundary (a cited lever:// address materializes on screen; transcript and model keep the address); plus `store.materialize` + harness send-file |
+| 13 | STORE→USER | rendered artifact/report delivered to the human | SERVED: `display_materialize_citations` — reply-by-address, rendered at the display boundary (a cited detent:// address materializes on screen; transcript and model keep the address); plus `store.materialize` + harness send-file |
 | 14 | STORE→CONTEXT | deterministic injection of cached artifacts | SERVED: `subagent_warm_start`, `post_compact_re_inject` inject what is decidable (the latest recorded fact); general injection is spec-invoked by design (`store get`/`slice` via receipts) — CHOOSING which artifact to inject is reasoning, the model's remainder |
 | 15 | STORE→WORKSPACE | materialize artifact to file, byte-exact, hash-verified | SERVED: `store.materialize` — spec-invoked machinery is this cell's terminal form (the model emits the spec; hooks were never the right shape here) |
 | 16 | STORE→WORLD | publish a stored artifact outward | SERVED: composition of `store.get` (transport) + the cell-18 gate, now total over the →WORLD class; dedicated publish machinery was DECLINED by the benefit rule — the composition already replaces the whole surface |
@@ -98,10 +98,10 @@ total: wrong type or unreadable substrate is ⊥, never a raise); a guard φ is 
 predicate over that slice; an action α is an envelope type — rewrite / deny / block / advise —
 or ⊥ (silence, the resting state). Capture is the one permitted side-map: monotone writes into
 the store, nowhere else. The three axes deconstruct as: **WHAT** = the accessor algebra (the π
-generators at the top of `lever/moves.py`); **WHEN** is not an axis — it is which substrate π
+generators at the top of `detent/moves.py`); **WHEN** is not an axis — it is which substrate π
 reads (event / workspace / ledger); **WHERE** = the type image (dom π, cod α) — each move
 declares its station pairs on itself (`@_flows`) and the punchcard's move rows in
-`lever/cells.py` are *derived* from those declarations, so a move and its cell cannot drift
+`detent/cells.py` are *derived* from those declarations, so a move and its cell cannot drift
 apart.
 
 Three laws hold universally, as parametrized tests over every move at once (`tests/test_laws.py`),
@@ -111,7 +111,7 @@ injected once is never re-injected), **store monotonicity** (objects immutable, 
 append-only across any firing). Monotonicity is the load-bearing one: by CALM (Hellerstein &
 Alvaro, "Keeping CALM: When Distributed Consistency Is Easy", CACM 2020), monotone programs
 need no coordination — which is the formal reason one agent and N agents behave identically
-here with zero coordination machinery. Thresholds are env-overridable operands (`LEVER_*`):
+here with zero coordination machinery. Thresholds are env-overridable operands (`DETENT_*`):
 configuration moves the operand, never the predicate shape (an operand set that would invert a
 verb — a "truncation" that inflates — is clamped, not honored).
 
@@ -156,14 +156,14 @@ therefore defined over event CLASSES: exact rows only for genuine specialists, a
 over tool_name INSIDE moves. `lookup` (exact, else wildcard) has no uncovered case by
 construction, and the executable proof feeds tools that do not exist yet through the real wire. One hazard from the harness's own docs, pinned: when two
 `PreToolUse` hooks both set `updatedInput`, the last to finish wins and their order is
-non-deterministic — Lever must therefore be the sole `updatedInput` writer for any tool it
+non-deterministic — Detent must therefore be the sole `updatedInput` writer for any tool it
 rewrites, or its own purity claim breaks at the hook boundary.
 
 ## Boundary
 
 Anything that weighs, scores, or judges belongs to Makoto or to the model's remainder — never
-here. Lever holds only what a rule fully decides. (The 5-vertex/20-edge shape is cut down from
-α, an older cause-registry design; its judgment-side vertices are precisely what Lever does not
+here. Detent holds only what a rule fully decides. (The 5-vertex/20-edge shape is cut down from
+α, an older cause-registry design; its judgment-side vertices are precisely what Detent does not
 absorb. Walking foreign cell inventories like α's remains a use-case quarry.)
 
 ## What "settled" means

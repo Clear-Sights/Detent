@@ -3,8 +3,8 @@
 The substrate CALLED BY the machinery of BEDROCK cells 3/8/11/20 (X→STORE, `put`), 13/15/16
 (STORE→X, `get`/`materialize`), and the bounded payloads of 6/10/14 (`slice_lines` — the only
 shape in which bytes may enter CONTEXT). Cell wiring status lives in BEDROCK.md's table, not
-here — a primitive existing does not mark a cell SERVED. Layout under $LEVER_STORE_DIR
-(default ~/.claude/lever_store): `objects/<sha256hex>` immutable artifacts named by their own
+here — a primitive existing does not mark a cell SERVED. Layout under $DETENT_STORE_DIR
+(default ~/.claude/detent_store): `objects/<sha256hex>` immutable artifacts named by their own
 checksum; `firings.jsonl` the append-only ledger, one JSON line per operation.
 
 Constitutional properties (BEDROCK): pure function of (args, disk state); artifacts land via
@@ -37,7 +37,7 @@ _ADDRESS_RX = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _root() -> Path:
-    return Path(os.environ.get("LEVER_STORE_DIR", "~/.claude/lever_store")).expanduser()
+    return Path(os.environ.get("DETENT_STORE_DIR", "~/.claude/detent_store")).expanduser()
 
 
 def _record(op: str, address: str | None, **detail) -> None:
@@ -206,11 +206,11 @@ def main() -> int:
         else:
             raise ValueError(f"unknown command: {cmd}")
     except IndexError:
-        print("usage: python -m lever.store put | put-file <path> | get <addr> | "
+        print("usage: python -m detent.store put | put-file <path> | get <addr> | "
               "materialize <addr> <dst> | slice <addr> <start> <end>", file=sys.stderr)
         return 1
     except (KeyError, ValueError, OSError) as e:
-        print(f"lever.store: {e}", file=sys.stderr)
+        print(f"detent.store: {e}", file=sys.stderr)
         return 1
     return 0
 
