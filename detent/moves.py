@@ -355,6 +355,111 @@ def write_deny_reemission(event: dict[str, Any]) -> Deny | None:
                 f"disk — a no-op re-emission. Skip the write.")
 
 
+# Reference grammars the model may emit in place of bytes it did not originate. Measured
+# before building (2026-07-10): 70,663 chars of old_string — 11.5% of ALL model output that
+# session — was anchor transport, bytes already on disk re-emitted solely to point at them.
+# The model types a ~20-char pointer; the hook does the copy/paste.
+_LINE_REF_RX = re.compile(r"detent://L(\d+)(?:-(\d+))?\Z")
+
+
+def _expand_line_ref(path: str, ref: str) -> str | None:
+    """π: the exact bytes of whole lines a..b (1-indexed, inclusive, newlines included) of the
+    target file, named by a detent://L<a>-<b> reference; ⊥ if the reference doesn't parse, the
+    file is unreadable, or the range runs past EOF (a hard miss must fall through untouched,
+    never guess)."""
+    m = _LINE_REF_RX.match(ref)
+    if not m:
+        return None
+    data = _file_bytes(path)
+    if data is None:
+        return None
+    a = int(m.group(1))
+    b = int(m.group(2)) if m.group(2) else a
+    lines = data.decode("utf-8", "replace").splitlines(keepends=True)
+    if a < 1 or b < a or b > len(lines):
+        return None
+    return "".join(lines[a - 1:b])
+
+
+@_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
+def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """PreToolUse / Edit: pointers instead of transport, then the cardinality gate. An
+    old_string of exactly detent://L<a>-<b> expands to those whole lines of the target file;
+    an old_string or new_string of exactly detent://<64hex> expands to those store bytes —
+    the model emits a reference, machinery moves the bytes. The expanded anchor is then held
+    to the SAME cardinality contract as a hand-typed one (a line-derived block that repeats
+    elsewhere in the file is ambiguous and denied, never guessed), and a non-reference Edit
+    passes straight through to edit_deny_ambiguous_anchor unchanged.
+
+    Does NOT touch: strings that are not exactly a reference (no scanning inside content),
+    unreadable files, out-of-range line references (fall through untouched — the ordinary
+    anchor match will fail loudly at the tool instead).
+
+    Live ceiling, pinned 2026-07-10: this client version validates Edit.old_string against
+    the file BEFORE PreToolUse rewrites apply, so the pointer form currently errors cleanly
+    at the tool (nothing corrupted — fail closed) while write_by_address applies live. The
+    hook side is correct per the documented protocol and verified on the wire; the gate
+    opens the moment the harness orders validation after rewrites."""
+    tool_input = _input(event)
+    file_path = _str_of(tool_input, "file_path")
+    old = _str_of(tool_input, "old_string")
+    new = _str_of(tool_input, "new_string")
+    expanded = dict(tool_input)
+    changed = False
+    if file_path and old:
+        for value, key in ((old, "old_string"), (new, "new_string")):
+            if value is None:
+                continue
+            hexm = _CITATION_RX.fullmatch(value)
+            if hexm:
+                try:
+                    expanded[key] = store_get(hexm.group(1)).decode("utf-8", "replace")
+                    changed = True
+                except (KeyError, OSError, ValueError):
+                    pass
+            elif key == "old_string":
+                lines = _expand_line_ref(file_path, value)
+                if lines is not None:
+                    expanded[key] = lines
+                    changed = True
+    if not changed:
+        return edit_deny_ambiguous_anchor(event)
+    gate = edit_deny_ambiguous_anchor({**event, "tool_input": expanded})
+    if isinstance(gate, Deny):
+        return Deny(f"{gate.reason} (anchor was expanded from a detent:// reference — widen "
+                    f"the line range until the block is unique)")
+    return expanded
+
+
+@_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
+def write_by_address(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """PreToolUse / Write: write-by-address. A content of exactly detent://<64hex>
+    materializes those store bytes into the write — ~70 output characters instead of the
+    whole payload; generation is stochastic once and every later use is a deterministic copy,
+    now enforced on the EMISSION side too. The expanded content is then held to the same
+    re-emission gate as a hand-typed one (materializing bytes identical to what is already
+    on disk is still a no-op and still denied), and a non-reference Write passes straight
+    through to write_deny_reemission unchanged.
+
+    Does NOT touch: content that is not exactly one reference, addresses that don't resolve
+    (fall through untouched — the model wrote a pointer to nothing, and the ordinary write
+    of that literal string is at least visible)."""
+    tool_input = _input(event)
+    content = _str_of(tool_input, "content")
+    hexm = _CITATION_RX.fullmatch(content) if content else None
+    if not hexm:
+        return write_deny_reemission(event)
+    try:
+        body = store_get(hexm.group(1)).decode("utf-8", "replace")
+    except (KeyError, OSError, ValueError):
+        return None
+    expanded = {**tool_input, "content": body}
+    gate = write_deny_reemission({**event, "tool_input": expanded})
+    if isinstance(gate, Deny):
+        return gate
+    return expanded
+
+
 @_flows("CONTEXT→STORE", "WORKSPACE→STORE")
 def edit_write_capture(event: dict[str, Any]) -> None:
     """PostToolUse / Edit+Write (capture): record the emission (new_string/content) and the
@@ -622,8 +727,8 @@ MOVES: dict[tuple[str, str | None], Any] = {
     ("PreToolUse", "Grep"): grep_bound_unbounded_content,
     ("PreToolUse", "Read"): read_bound_unbounded_content,
     ("PreToolUse", "Bash"): bash_deny_raw_grep_search,
-    ("PreToolUse", "Edit"): edit_deny_ambiguous_anchor,
-    ("PreToolUse", "Write"): write_deny_reemission,
+    ("PreToolUse", "Edit"): edit_by_reference,
+    ("PreToolUse", "Write"): write_by_address,
     ("PreToolUse", "*"): outbound_deny_secret_pattern,
     ("PostToolUse", "Edit"): edit_write_capture,
     ("PostToolUse", "Write"): edit_write_capture,

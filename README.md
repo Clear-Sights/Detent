@@ -51,6 +51,15 @@ the operand, never the predicate shape: a truncate-keep spanning the threshold (
 "truncation" inflate the payload) is clamped, not honored. Dispatch overhead, measured: ~60 ms
 per hook invocation (interpreter startup dominates).
 
+**Pointers, not transport.** The model may emit a reference where bytes it did not originate
+belong, and machinery does the copy/paste (measured motivation: 11.5% of one build session's
+entire model output was `old_string` anchor transport — bytes already on disk, re-typed to
+point at them). A Write whose content is exactly `detent://<addr>` materializes those store
+bytes (verified live: 73 output characters, arbitrary payload). An Edit whose old_string is
+exactly `detent://L<a>-<b>` expands to those lines of the target file, then faces the same
+cardinality gate as a typed anchor. (Current Claude Code versions validate Edit input before
+hook rewrites apply, so the Edit form waits on the harness; the Write form works today.)
+
 `/detent` (the one slash command) relays that trace verbatim — the human's way to ask
 "is the rod latched?" without trusting anyone's word for it.
 
