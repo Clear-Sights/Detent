@@ -62,7 +62,7 @@ at SubagentStop hashes every subagent reply); the spawn-brief leg and the ad hoc
 | 8 | WORLD→STORE | fetches hash-cached; repeat fetch of same URL+hash is a STORE hit | SERVED: `into_store` captures every retrieval by hash — any tool, first contact |
 | 9 | WORKSPACE→USER | file sent to the human directly | SERVED (harness send-file) |
 | 10 | WORKSPACE→CONTEXT | bounded, addressed reads — the model never receives more than the declared slice | SERVED: `into_context` — ONE function: pre-side bounds (Grep/Read), the raw-search redirect (Bash), and the result-side bound for every tool including future ones |
-| 11 | WORKSPACE→STORE | snapshot/capture: file state hashed into the store | SERVED: `store.put`/`put_file` (spec-invoked) + `into_store` (hook-fired on every Edit/Write) |
+| 11 | WORKSPACE→STORE | snapshot/capture: file state hashed into the store | SERVED: `store.put`/`put_file` (spec-invoked) + `into_store` (hook-fired on every Edit/Write, and on FileChanged for every OTHER writer — Bash redirects, builds, foreign processes — which native checkpointing does not track; FileChanged's firing conditions pinned pending live proof) |
 | 12 | WORKSPACE→WORLD | push / deploy / publish from disk — verify-gated, never model-gated | PARTIAL at external ceiling: git-transport pushes bypass the hook layer by construction; the deterministic gate lives env-side (pre-push gitleaks), named and active |
 | 13 | STORE→USER | rendered artifact/report delivered to the human | SERVED: `store_to_user` — reply-by-address, rendered at the display boundary; plus `store.materialize` + harness send-file |
 | 14 | STORE→CONTEXT | deterministic injection of cached artifacts | SERVED: `store_to_context` — the decidable slice injected automatically (latest recorded fact at spawn/post-compaction; any detent:// reference present in a prompt, materialized); CHOOSING what to inject is reasoning, the model's remainder |
@@ -70,7 +70,7 @@ at SubagentStop hashes every subagent reply); the spawn-brief leg and the ad hoc
 | 16 | STORE→WORLD | publish a stored artifact outward | SERVED: composition of `store.get` (transport) + the cell-18 gate, now total over the →WORLD class; dedicated publish machinery was DECLINED by the benefit rule — the composition already replaces the whole surface |
 | 17 | CONTEXT→USER | the reply: every fact machine-included from a trace/artifact; the model contributes reasoning only — never transported facts | PARTIAL at boundary ceiling — the checkable slice is fully enforced (`context_to_user`: cited addresses resolve or the turn blocks; `store_to_user` renders them); distinguishing transported facts from reasoning inside prose is judgment — the sibling faculty's writ. Quote-transport gate measured 0.0% and declined by the benefit rule |
 | 18 | CONTEXT→WORLD | outward composed acts (PR bodies, comments, API calls) — verify-gated | PARTIAL at boundary ceiling — `context_to_world` gates the ENTIRE →WORLD tool class (every `mcp__*` tool by the pinned MCP-is-WORLD convention, plus WebFetch/WebSearch) on exact secret grammars; deciding which outbound claims need receipts is judgment — the sibling faculty's writ |
-| 19 | CONTEXT→WORKSPACE | Write/Edit: anchor resolved by declared cardinality (ambiguity = hard error, pre-checked before the call burns a round trip); no re-emission of bytes already on disk (small delta → Edit, not whole-file Write) | SERVED: `context_to_workspace` — pointers expand, anchors face the cardinality gate, byte-identical re-emissions are denied |
+| 19 | CONTEXT→WORKSPACE | Write/Edit: anchor resolved by declared cardinality (ambiguity = hard error, pre-checked before the call burns a round trip); no re-emission of bytes already on disk (small delta → Edit, not whole-file Write) | SERVED: `context_to_workspace` — pointers expand (Write at PreToolUse, proven live; Edit via the defer→PermissionRequest seam, the documented route around clients that validate old_string before pre-rewrites), anchors face the cardinality gate, byte-identical re-emissions are denied |
 | 20 | CONTEXT→STORE | generation captured as artifact at emission; stochastic once, addressable forever | SERVED: `into_store` — every emission, result, failure, reply, subagent reply, and compaction summary |
 
 ## Graph rules (not cells)
@@ -186,6 +186,12 @@ Benefit claims are computed by deterministic replay (`tools/measure.py`), never 
 proposed move whose replacement measures ~0 on the relevant corpus is not built, and that
 decision is recorded (see MEMOIZE's reroute and the reply-quote gate: both measured ~0 on the
 build corpus, both declined on the record rather than built as theater).
+
+Re-measured 2026-07-10 (grown corpus): duplicate result payloads re-entering the same
+window measure 0.9% of context result bytes (13 events, 17.6k chars; was 0.3%) — the
+repeat-transport decline stands, and the repeated-identical-call tail is dominated by
+legitimate re-execution (files re-read after edits, release polling), which no exact
+predicate can distinguish from waste without judgment.
 
 Declined 2026-07-10 — NotebookEdit specialists: a `("PreToolUse", "NotebookEdit")` row
 (pointer expansion / identical-emission deny over `new_source`) and a notebook leg in

@@ -26,7 +26,7 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from detent.contract import Block, Deny
+from detent.contract import Block, Defer, Deny
 from detent.facts import latest_verified_fact
 from detent.store import firings as store_firings
 from detent.store import get as store_get
@@ -415,11 +415,12 @@ def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     unreadable files, out-of-range line references (fall through untouched — the ordinary
     anchor match will fail loudly at the tool instead).
 
-    Live ceiling, pinned 2026-07-10: this client version validates Edit.old_string against
-    the file BEFORE PreToolUse rewrites apply, so the pointer form currently errors cleanly
-    at the tool (nothing corrupted — fail closed) while write_by_address applies live. The
-    hook side is correct per the documented protocol and verified on the wire; the gate
-    opens the moment the harness orders validation after rewrites."""
+    Seam, pinned 2026-07-10: this client validates Edit.old_string against the file BEFORE
+    PreToolUse rewrites apply, so a pre-side expansion is dead on arrival. The harness's own
+    documented route: the pre side answers permissionDecision "defer", this same expansion
+    fires again at PermissionRequest, and decision.updatedInput applies as a condition of
+    approval — before the client's validation. context_to_workspace owns that event split;
+    this function only computes the expansion."""
     tool_input = _input(event)
     file_path = _str_of(tool_input, "file_path")
     old = _str_of(tool_input, "old_string")
@@ -506,6 +507,24 @@ def upload_capture_on_read(event: dict[str, Any]) -> None:
     except OSError:
         return None
     _capture(lambda: Path(file_path).is_file() and store_put_file(file_path))
+    return None
+
+
+def file_changed_capture(event: dict[str, Any]) -> None:
+    """FileChanged (capture): a watched file changed by ANY writer — a Bash redirect, an
+    external process, a build — and its new state becomes addressable. Native checkpointing
+    tracks only the model's own Edit/Write; this is the deterministic capture point for
+    everything else that touches the workspace. Same store, same pointer economy.
+
+    Does NOT touch: absent/non-string/unreadable paths (silent); fails open on storage
+    errors. Firing conditions pinned 2026-07-10: the event did not fire mid-session on this
+    harness build (hooks likely snapshot at start; watchPaths at SessionStart may be
+    required) — wired occurrence-driven, the live ledger is the proof-of-fire."""
+    file_path = _str_of(event, "file_path") or _str_of(event, "path")
+    if not file_path:
+        return None
+    _capture(lambda: Path(file_path).is_file()
+             and store_record("file_changed", store_put_file(file_path), path=file_path))
     return None
 
 
@@ -782,6 +801,8 @@ def into_store(event: dict[str, Any]) -> None:
         return subagent_result_capture(event)
     if name == "PostCompact":
         return compact_summary_capture(event)
+    if name == "FileChanged":
+        return file_changed_capture(event)
     if name == "PostToolUse":
         if event.get("tool_name") == "Read":
             upload_capture_on_read(event)
@@ -790,12 +811,19 @@ def into_store(event: dict[str, Any]) -> None:
 
 
 @_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
-def context_to_workspace(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+def context_to_workspace(event: dict[str, Any]) -> dict[str, Any] | Defer | Deny | None:
     """Cells 19 and 15 (hook leg) — emissions toward disk: pointers expand (line anchors,
     store addresses, fragments), expanded and typed anchors alike face the cardinality gate,
-    byte-identical re-emissions are denied."""
+    byte-identical re-emissions are denied. Edit's expansion lands at PermissionRequest (this
+    client validates old_string BEFORE PreToolUse rewrites, so the pre side answers "defer"
+    and the same verb fires again there, its rewrite applying as a condition of approval —
+    the harness's own documented seam, 2026-07-10)."""
     if event.get("tool_name") == "Edit":
-        return edit_by_reference(event)
+        updated = edit_by_reference(event)
+        if event.get("hook_event_name") == "PermissionRequest" or not isinstance(updated, dict):
+            return updated   # rewrite at the seam that honors it; Deny/None pass through anywhere
+        return Defer("Edit anchor is a detent:// reference — expansion applies at "
+                     "PermissionRequest, before the client validates old_string")
     return write_by_address(event)
 
 
@@ -857,6 +885,8 @@ MOVES: dict[tuple[str, str | None], Any] = {
     ("PreToolUse", "*"): (context_to_world,),
     ("PostToolUse", "*"): (into_store, into_context),   # EVERY tool, no private routes
     ("PostToolUseFailure", "*"): (into_store,),
+    ("PermissionRequest", "Edit"): (context_to_workspace,),
+    ("FileChanged", None): (into_store,),
     ("UserPromptSubmit", None): (store_to_context, user_to_context),
     ("Stop", None): (context_to_user,),
     ("SubagentStart", None): (store_to_context,),

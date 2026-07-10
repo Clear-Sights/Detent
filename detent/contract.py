@@ -43,11 +43,28 @@ KNOWN_EVENTS = frozenset({
 # counting it here would make this set an artifact of the docs' phrasing rather than of the law.
 REWRITE_CAPABLE = frozenset({"PreToolUse", "PostToolUse", "PermissionRequest"})
 
-# Events whose hookSpecificOutput supports a genuine deny/veto decision
-# (permissionDecision: "deny" + permissionDecisionReason) rather than only a same-tool rewrite.
-# Confirmed live against code.claude.com/docs/en/hooks, 2026-07-09. A block/veto is READ with a
-# "gate" effect, not its own primitive (see LAW.md) — this is that gate's one supported shape.
-DENY_CAPABLE = frozenset({"PreToolUse"})
+# Events whose hookSpecificOutput supports a genuine deny/veto decision — PreToolUse via
+# permissionDecision: "deny" + permissionDecisionReason; PermissionRequest via its own
+# decision: {behavior: "deny", message} shape (dispatch picks the envelope by event name).
+# Confirmed against code.claude.com/docs/en/hooks, 2026-07-09 and 2026-07-10. A block/veto is
+# READ with a "gate" effect, not its own primitive (see LAW.md) — these are that gate's
+# supported shapes.
+DENY_CAPABLE = frozenset({"PreToolUse", "PermissionRequest"})
+
+# Events whose hookSpecificOutput supports permissionDecision: "defer" — routing the decision
+# (and with it the REWRITE opportunity) to the PermissionRequest hook, whose
+# decision.updatedInput applies as a condition of approval BEFORE the client validates the
+# input. This is the harness's own documented route around clients that validate tool input
+# (Edit.old_string) before PreToolUse rewrites land. code.claude.com/docs/en/hooks, 2026-07-10.
+DEFER_CAPABLE = frozenset({"PreToolUse"})
+
+
+@dataclass(frozen=True)
+class Defer:
+    """A move's signal to route the permission decision to the PermissionRequest hook, where
+    the same move fires again and its rewrite applies as a condition of approval. Same
+    nominal-type discipline as Deny/Block: dispatch tells envelopes apart by TYPE alone."""
+    reason: str
 
 
 @dataclass(frozen=True)

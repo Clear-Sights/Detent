@@ -62,8 +62,12 @@ Write's content or an Edit's new_string materializes exactly those lines of the 
 artifact — copy a piece of anything that ever existed, in one pointer. And the pointers work
 for the human too: type `detent://<addr>` (or `:L<a>-<b>`) anywhere in a prompt and the hook
 pushes the bytes to the model — measured motivation: 7.6% of one session's user-prompt bytes
-were re-pastes of lines already in context. Dangling references are named, never dropped. (Current Claude Code versions validate Edit input before
-hook rewrites apply, so the Edit form waits on the harness; the Write form works today.)
+were re-pastes of lines already in context. Dangling references are named, never dropped.
+(Current Claude Code versions validate Edit input before PreToolUse rewrites apply, so the
+Edit form routes through the harness's own documented seam instead: the pre hook answers
+`permissionDecision: "defer"`, and the PermissionRequest hook applies the expansion as a
+condition of approval — before the client's validation. The Write form works at PreToolUse
+directly.)
 
 `/detent` (the one slash command) relays that trace verbatim — the human's way to ask
 "is the rod latched?" without trusting anyone's word for it.

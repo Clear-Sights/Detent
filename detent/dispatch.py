@@ -29,7 +29,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from detent.contract import BLOCK_CAPABLE, DENY_CAPABLE, Block, Deny, emit, read_event
+from detent.contract import (BLOCK_CAPABLE, DEFER_CAPABLE, DENY_CAPABLE, Block, Defer, Deny,
+                             emit, read_event)
 from detent.moves import lookup
 
 # REWRITE events: a move's dict return goes under this key.
@@ -74,12 +75,24 @@ def route(event: dict[str, Any]) -> dict[str, Any]:
                 f"a move for {hook_event_name!r} returned Block, but {hook_event_name!r} is not "
                 f"in BLOCK_CAPABLE -- a Detent wiring bug, not a data problem.")
         return {"decision": "block", "reason": replacement.reason}
+    if isinstance(replacement, Defer):
+        if hook_event_name not in DEFER_CAPABLE:
+            raise RuntimeError(
+                f"a move for {hook_event_name!r} returned Defer, but {hook_event_name!r} is not "
+                f"in DEFER_CAPABLE -- a Detent wiring bug, not a data problem.")
+        return {"hookSpecificOutput": {"hookEventName": hook_event_name,
+                                       "permissionDecision": "defer",
+                                       "permissionDecisionReason": replacement.reason}}
     if isinstance(replacement, Deny):
         if hook_event_name not in DENY_CAPABLE:
             raise RuntimeError(
                 f"a move for {hook_event_name!r} returned Deny, but {hook_event_name!r} is not "
                 f"in DENY_CAPABLE -- this is a Detent wiring bug (MOVES table registered a move "
                 f"against an event whose protocol can't express a deny), not a data problem.")
+        if hook_event_name == "PermissionRequest":
+            return {"hookSpecificOutput": {"hookEventName": hook_event_name,
+                                           "decision": {"behavior": "deny",
+                                                        "message": replacement.reason}}}
         return {"hookSpecificOutput": {"hookEventName": hook_event_name,
                                        "permissionDecision": "deny",
                                        "permissionDecisionReason": replacement.reason}}
@@ -87,6 +100,13 @@ def route(event: dict[str, Any]) -> dict[str, Any]:
     if str_key is not None and isinstance(replacement, str):
         return {"hookSpecificOutput": {"hookEventName": hook_event_name,
                                        str_key: replacement}}
+    if hook_event_name == "PermissionRequest" and isinstance(replacement, dict):
+        # PermissionRequest's rewrite IS the approval: decision.updatedInput applies as a
+        # condition of behavior "allow" — the one event where the harness orders the rewrite
+        # before the client's own input validation (the defer seam's landing site).
+        return {"hookSpecificOutput": {"hookEventName": hook_event_name,
+                                       "decision": {"behavior": "allow",
+                                                    "updatedInput": replacement}}}
     envelope_key = _REWRITE_ENVELOPE_KEY.get(hook_event_name)
     if envelope_key is None:
         return {}  # a move was registered against an unrecognized event — refuse silently

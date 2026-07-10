@@ -1,34 +1,129 @@
 {
   "hooks": {
     "PreToolUse": [
-      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "PostToolUse": [
-      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "PostToolUseFailure": [
-      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "UserPromptSubmit": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "Stop": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "SubagentStart": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "SubagentStop": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "SessionStart": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "PostCompact": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ],
     "MessageDisplay": [
-      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"}]}
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
+    ],
+    "FileChanged": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/dispatch.sh"
+          }
+        ]
+      }
     ]
   }
 }
