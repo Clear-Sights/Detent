@@ -1,0 +1,10 @@
+{
+  "name": "lever",
+  "description": "A strictly passive, deterministic leverage layer for coding agents: the LLM only reasons; machinery does every read, write, transport, and verification it provably can. 20-cell coverage topology (BEDROCK.md), content-addressed artifact store, and hook moves that bound, deny, or inject only where a lossless deterministic path exists.",
+  "version": "0.1.0",
+  "author": {"name": "Clear-Sights"},
+  "homepage": "https://github.com/Clear-Sights/Lever",
+  "repository": "https://github.com/Clear-Sights/Lever",
+  "license": "Apache-2.0",
+  "keywords": ["claude-code", "determinism", "hooks", "content-addressed", "lever"]
+}

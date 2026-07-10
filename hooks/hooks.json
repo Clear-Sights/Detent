@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "PostToolUseFailure": [
+      {"matcher": "*", "hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "UserPromptSubmit": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "SubagentStart": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "SubagentStop": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "PostCompact": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ],
+    "MessageDisplay": [
+      {"hooks": [{"type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/_dispatch_shim.sh"}]}
+    ]
+  }
+}
