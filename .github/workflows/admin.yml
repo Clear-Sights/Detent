@@ -1,0 +1,22 @@
+name: admin
+on:
+  workflow_dispatch:
+    inputs:
+      delete_branch:
+        description: "Branch to delete (never main)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: delete the named branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ inputs.delete_branch }}
+        run: |
+          test "$BRANCH" != "main" || { echo "refusing to delete main"; exit 1; }
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${BRANCH}"
