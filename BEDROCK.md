@@ -193,6 +193,15 @@ repeat-transport decline stands, and the repeated-identical-call tail is dominat
 legitimate re-execution (files re-read after edits, release polling), which no exact
 predicate can distinguish from waste without judgment.
 
+Declined 2026-07-10 — an "always beneficial" env-var layer: evaluated against the live
+corpus and the harness's own issue tracker. Raising BASH_MAX_OUTPUT_LENGTH (so captures see
+full bytes) measured 1 clipped capture in 400 (0.25%) and carries documented harness-side
+memory-bloat risk (anthropics/claude-code#11155; setting ignored on some builds, #17944).
+CLAUDE_CODE_MAX_OUTPUT_TOKENS is documented-unreliable (#29488). ENABLE_TOOL_SEARCH's
+deferral is already the harness default — prefer-native says use it, not duplicate it.
+Verdict: the defaults are already right; no env layer ships. Detent's own DETENT_* operands
+remain the only knobs, all optional.
+
 Declined 2026-07-10 — Bash command-payload pointers: expansion of detent:// references
 inside Bash command strings (the heredoc-transport class) measured **0.0%** on the full build
 corpus — 483 commands, 336k command chars, zero ≥200-char blocks re-typed from bytes already
