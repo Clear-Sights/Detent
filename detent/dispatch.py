@@ -18,7 +18,7 @@ import sys
 from typing import Any
 
 from detent.contract import Block, Defer, Deny, emit, read_event
-from detent.moves import lookup
+from detent.moves import _is_world_tool, lookup
 
 
 def _hso(event_name: str, **fields) -> dict[str, Any]:
@@ -106,16 +106,31 @@ def main() -> int:
         result = route(event)
     except Exception as e:
         # route() raising is always a Detent wiring bug (a decision type without an ENVELOPE
-        # row), never external data -- but this module's own contract ("this emits {} ... the
-        # harness treats an empty response as 'no opinion'") has to hold even then. Loud to
-        # stderr (a developer sees it, a test can assert on it), safe to stdout (the harness
-        # never sees a broken response) -- the same fail-loud-then-fail-safe split read_event()
-        # already uses.
+        # row), never external data. Loud to stderr; then the failure DIRECTION is chosen by
+        # what was at stake: rewrites and capture fail OPEN ({} -- availability, the harness
+        # proceeds untouched), but the outbound enforcement gate fails CLOSED -- a security
+        # gate that silently vanishes when its own machinery errors was never a gate. Scope
+        # is exact: (PreToolUse, ->WORLD-class tool) only, decided by the same _is_world_tool
+        # predicate the gate itself uses.
         print(f"detent.dispatch: move raised {e!r}", file=sys.stderr)
-        emit({})
+        emit(_failure_envelope(event))
         return 0
     emit(result)
     return 0
+
+
+def _failure_envelope(event: dict[str, Any]) -> dict[str, Any]:
+    try:
+        if (event.get("hook_event_name") == "PreToolUse"
+                and _is_world_tool(str(event.get("tool_name") or ""))):
+            return _hso("PreToolUse", permissionDecision="deny",
+                        permissionDecisionReason=(
+                            "detent: internal error while the outbound gate was due to run; "
+                            "failing closed for the →WORLD tool class (see dispatch "
+                            "stderr). Retry the call; report if it persists."))
+    except Exception:
+        pass  # the failure path must never itself fail; fall through to open
+    return {}
 
 
 if __name__ == "__main__":
