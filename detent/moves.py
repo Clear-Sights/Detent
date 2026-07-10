@@ -365,6 +365,7 @@ def write_deny_reemission(event: dict[str, Any]) -> Deny | None:
 # The model types a ~20-char pointer; the hook does the copy/paste.
 _LINE_REF_RX = re.compile(r"detent://L(\d+)(?:-(\d+))?\Z")
 _ADDR_REF_RX = re.compile(r"detent://([0-9a-f]{64})(?::L(\d+)-(\d+))?\Z")
+_INLINE_REF_RX = re.compile(r"detent://[0-9a-f]{64}(?::L\d+-\d+)?")
 
 
 def _resolve_addr_ref(value: str) -> str | None:
@@ -556,17 +557,41 @@ def response_capture_and_bound(event: dict[str, Any]) -> dict[str, Any] | None:
     return out if out != response else None
 
 
-@_flows("USER→CONTEXT")
-def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
-    """UserPromptSubmit: capture the prompt as an artifact, and on an EXACT byte-match repeat
-    of a prior prompt (sha256 equality — near-match is judgment and stays out, per MEMOIZE),
-    advise with the prior captured reply's address instead of silence. Advisory tier:
-    UserPromptSubmit has no rewrite envelope, so this cannot force reuse — it makes reuse free.
+def _resolve_prompt_refs(prompt: str) -> str | None:
+    """π over inline detent:// references in the USER's own prompt: the user types an address
+    (or :L<a>-<b> fragment) anywhere in chat and machinery pushes the bytes to the model —
+    measured motivation: 7.6% of user prompt bytes in the build session were re-pastes of
+    lines already in context. Resolved refs materialize (bounded when oversized); dangling
+    refs are NAMED, never silently dropped. ⊥ when the prompt contains no references."""
+    parts = []
+    for m in _INLINE_REF_RX.finditer(prompt):
+        body = _resolve_addr_ref(m.group(0))
+        if body is None:
+            parts.append(f"{m.group(0)} does not resolve")
+            continue
+        if len(body) > BASH_TRUNCATE_THRESHOLD:
+            body = _head_tail(body, f"full artifact: {m.group(0)}")
+        parts.append(f"{m.group(0)} ⟦{body}⟧")
+    if not parts:
+        return None
+    return "[detent: referenced artifacts — " + "; ".join(parts) + "]"
 
-    Does NOT touch: first-time prompts (silence), near-matches (silence, by law)."""
+
+@_flows("USER→CONTEXT", "STORE→CONTEXT")
+def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
+    """UserPromptSubmit: resolve any detent:// references the USER typed (machinery pushes the
+    bytes; the human never re-pastes), capture the prompt as an artifact, and on an EXACT
+    byte-match repeat of a prior prompt (sha256 equality — near-match is judgment and stays
+    out, per MEMOIZE), advise with the prior captured reply's address instead of silence.
+    Advisory tier: UserPromptSubmit has no rewrite envelope, so this cannot force reuse — it
+    makes reuse (and reference-pushing) free.
+
+    Does NOT touch: first-time prompts without references (silence), near-matches (silence,
+    by law)."""
     prompt = _str_of(event, "prompt")
     if not prompt:
         return None
+    refs = _resolve_prompt_refs(prompt)
     sha = hashlib.sha256(prompt.encode()).hexdigest()
     try:
         rows = store_firings()
@@ -574,17 +599,19 @@ def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
         addr = store_put(prompt.encode())
         store_record("prompt", addr, sha=sha, prompt_id=event.get("prompt_id"))
     except (OSError, ValueError):
-        return None
+        return refs
     if not prior:
-        return None
+        return refs
     prior_id = prior[-1].get("prompt_id")
     replies = ([r for r in rows if r.get("op") == "reply" and r.get("prompt_id") == prior_id]
                if prior_id is not None else [])  # None==None must never join A's repeat to B's reply
     if replies:
-        return (f"[detent: this exact prompt was submitted before; the prior reply is artifact "
-                f"detent://{replies[-1]['address']} — `python3 -m detent.store get <address>` to "
-                f"reuse it instead of regenerating]")
-    return "[detent: this exact prompt was submitted before (no captured reply on record)]"
+        repeat = (f"[detent: this exact prompt was submitted before; the prior reply is artifact "
+                  f"detent://{replies[-1]['address']} — `python3 -m detent.store get <address>` to "
+                  f"reuse it instead of regenerating]")
+    else:
+        repeat = "[detent: this exact prompt was submitted before (no captured reply on record)]"
+    return f"{refs}\n{repeat}" if refs else repeat
 
 
 @_flows("CONTEXT→STORE", "CONTEXT→USER")
