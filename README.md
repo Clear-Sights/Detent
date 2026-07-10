@@ -57,7 +57,9 @@ entire model output was `old_string` anchor transport — bytes already on disk,
 point at them). A Write whose content is exactly `detent://<addr>` materializes those store
 bytes (verified live: 73 output characters, arbitrary payload). An Edit whose old_string is
 exactly `detent://L<a>-<b>` expands to those lines of the target file, then faces the same
-cardinality gate as a typed anchor. (Current Claude Code versions validate Edit input before
+cardinality gate as a typed anchor. Fragments paste by range: `detent://<addr>:L<a>-<b>` as a
+Write's content or an Edit's new_string materializes exactly those lines of the stored
+artifact — copy a piece of anything that ever existed, in one pointer. (Current Claude Code versions validate Edit input before
 hook rewrites apply, so the Edit form waits on the harness; the Write form works today.)
 
 `/detent` (the one slash command) relays that trace verbatim — the human's way to ask

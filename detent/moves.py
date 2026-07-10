@@ -360,6 +360,27 @@ def write_deny_reemission(event: dict[str, Any]) -> Deny | None:
 # session — was anchor transport, bytes already on disk re-emitted solely to point at them.
 # The model types a ~20-char pointer; the hook does the copy/paste.
 _LINE_REF_RX = re.compile(r"detent://L(\d+)(?:-(\d+))?\Z")
+_ADDR_REF_RX = re.compile(r"detent://([0-9a-f]{64})(?::L(\d+)-(\d+))?\Z")
+
+
+def _resolve_addr_ref(value: str) -> str | None:
+    """π: store bytes named by detent://<addr>, or the exact lines a..b of them when the
+    reference carries :L<a>-<b> — a FRAGMENT paste by pointer. ⊥ on no-match, unresolvable
+    address, or a range past EOF (a hard miss falls through untouched, never guessed)."""
+    m = _ADDR_REF_RX.fullmatch(value)
+    if not m:
+        return None
+    try:
+        body = store_get(m.group(1)).decode("utf-8", "replace")
+    except (KeyError, OSError, ValueError):
+        return None
+    if not m.group(2):
+        return body
+    a, b = int(m.group(2)), int(m.group(3))
+    lines = body.splitlines(keepends=True)
+    if a < 1 or b < a or b > len(lines):
+        return None
+    return "".join(lines[a - 1:b])
 
 
 def _expand_line_ref(path: str, ref: str) -> str | None:
@@ -410,13 +431,10 @@ def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
         for value, key in ((old, "old_string"), (new, "new_string")):
             if value is None:
                 continue
-            hexm = _CITATION_RX.fullmatch(value)
-            if hexm:
-                try:
-                    expanded[key] = store_get(hexm.group(1)).decode("utf-8", "replace")
-                    changed = True
-                except (KeyError, OSError, ValueError):
-                    pass
+            body = _resolve_addr_ref(value)
+            if body is not None:
+                expanded[key] = body
+                changed = True
             elif key == "old_string":
                 lines = _expand_line_ref(file_path, value)
                 if lines is not None:
@@ -446,12 +464,10 @@ def write_by_address(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     of that literal string is at least visible)."""
     tool_input = _input(event)
     content = _str_of(tool_input, "content")
-    hexm = _CITATION_RX.fullmatch(content) if content else None
-    if not hexm:
+    if not content or not _ADDR_REF_RX.fullmatch(content):
         return write_deny_reemission(event)
-    try:
-        body = store_get(hexm.group(1)).decode("utf-8", "replace")
-    except (KeyError, OSError, ValueError):
+    body = _resolve_addr_ref(content)
+    if body is None:
         return None
     expanded = {**tool_input, "content": body}
     gate = write_deny_reemission({**event, "tool_input": expanded})
