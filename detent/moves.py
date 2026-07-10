@@ -784,7 +784,7 @@ def into_store(event: dict[str, Any]) -> None:
         return compact_summary_capture(event)
     if name == "PostToolUse":
         if event.get("tool_name") == "Read":
-            return upload_capture_on_read(event)
+            upload_capture_on_read(event)
         return edit_write_capture(event)
     return None
 
@@ -854,10 +854,7 @@ MOVES: dict[tuple[str, str | None], Any] = {
     ("PreToolUse", "Edit"): (context_to_workspace,),
     ("PreToolUse", "Write"): (context_to_workspace,),
     ("PreToolUse", "*"): (context_to_world,),
-    ("PostToolUse", "Edit"): (into_store,),
-    ("PostToolUse", "Write"): (into_store,),
-    ("PostToolUse", "Read"): (into_store,),
-    ("PostToolUse", "*"): (into_store, into_context),
+    ("PostToolUse", "*"): (into_store, into_context),   # EVERY tool, no private routes
     ("PostToolUseFailure", "*"): (into_store,),
     ("UserPromptSubmit", None): (store_to_context, user_to_context),
     ("Stop", None): (context_to_user,),
