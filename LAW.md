@@ -42,14 +42,15 @@ a detent, not an analogy for one.
 (`MessageDisplay`'s `hookSpecificOutput.displayContent` is a rewrite-shaped field but not a
 rewrite in this sense — it changes what's rendered, never what the model sees, pays for, or
 conditions future behavior on. It substitutes nothing costly, so it stays out of this tier
-entirely; see `detent/contract.py`'s `REWRITE_CAPABLE` comment for the full reasoning.)
+entirely; see the `dispatch.ENVELOPE` table's own row comments for the full reasoning.)
 
 A block or veto is not a fourth primitive — §2.1 of this project's own design already settled
 that a gate is READ with a gate effect, not its own op — but it is a third *envelope* shape,
 distinct from both REWRITE and ADVISORY: `PreToolUse` may also return
 `hookSpecificOutput.permissionDecision: "deny"` with a `permissionDecisionReason`, vetoing the
-call outright with no substitute call offered. `detent/contract.py`'s `DENY_CAPABLE` names which
-events support it (`PreToolUse` only, confirmed live 2026-07-09). This is strictly weaker than a
+call outright with no substitute call offered. the `dispatch.ENVELOPE` table names which
+events support it as rows — capability is row existence (`PreToolUse` confirmed live
+2026-07-09; `PermissionRequest` via its own decision shape, 2026-07-10). This is strictly weaker than a
 true cross-tool rewrite — Claude Code's protocol has no mechanism for a hook to substitute a
 *different* tool's call in place of the one requested, only to modify the same tool's own input
 or veto it — so a move built on this tier can stop a call and name what should have been called

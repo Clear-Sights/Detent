@@ -29,43 +29,11 @@ KNOWN_EVENTS = frozenset({
     "MessageDisplay", "WorktreeCreate", "WorktreeRemove",
 })
 
-# Events whose hookSpecificOutput supports a rewrite (updatedInput / updatedToolOutput) rather
-# than only advisory additionalContext. This is Detent's primary mechanism — see LAW.md.
-#
-# PermissionRequest included: hookSpecificOutput.decision.updatedInput substitutes the actual
-# tool input before it executes, the same functional shape as PreToolUse's updatedInput (FABLE
-# DECISION, 2026-07-08 grounding pass against code.claude.com/docs/en/hooks).
-#
-# MessageDisplay deliberately excluded despite also having a rewrite-shaped output field
-# (hookSpecificOutput.displayContent): that field is documented as display-only — it changes
-# what's rendered, not what the model sees, pays for, or conditions future behavior on. It
-# substitutes nothing costly and cascades nothing, so it fails LAW.md's selection test outright;
-# counting it here would make this set an artifact of the docs' phrasing rather than of the law.
-REWRITE_CAPABLE = frozenset({"PreToolUse", "PostToolUse", "PermissionRequest"})
-
-# Events whose hookSpecificOutput supports a genuine deny/veto decision — PreToolUse via
-# permissionDecision: "deny" + permissionDecisionReason; PermissionRequest via its own
-# decision: {behavior: "deny", message} shape (dispatch picks the envelope by event name).
-# Confirmed against code.claude.com/docs/en/hooks, 2026-07-09 and 2026-07-10. A block/veto is
-# READ with a "gate" effect, not its own primitive (see LAW.md) — these are that gate's
-# supported shapes.
-DENY_CAPABLE = frozenset({"PreToolUse", "PermissionRequest"})
-
-# Events whose hookSpecificOutput supports permissionDecision: "defer" — routing the decision
-# (and with it the REWRITE opportunity) to the PermissionRequest hook, whose
-# decision.updatedInput applies as a condition of approval BEFORE the client validates the
-# input. This is the harness's own documented route around clients that validate tool input
-# (Edit.old_string) before PreToolUse rewrites land. code.claude.com/docs/en/hooks, 2026-07-10.
-DEFER_CAPABLE = frozenset({"PreToolUse"})
-
-
-@dataclass(frozen=True)
-class Defer:
-    """A move's signal to route the permission decision to the PermissionRequest hook, where
-    the same move fires again and its rewrite applies as a condition of approval. Same
-    nominal-type discipline as Deny/Block: dispatch tells envelopes apart by TYPE alone."""
-    reason: str
-
+# The capability sets that used to live here (REWRITE/DENY/DEFER/BLOCK_CAPABLE) are now rows
+# of dispatch.ENVELOPE — one table, (event, result-type) -> protocol shape, capability IS row
+# existence. The doc citations moved onto the rows. The nominal types below remain the exact
+# vocabulary a move answers with; dispatch tells envelopes apart by TYPE alone, never by
+# inspecting dict content.
 
 @dataclass(frozen=True)
 class Deny:
@@ -76,10 +44,12 @@ class Deny:
     reason: str
 
 
-# Events supporting the documented top-level {"decision": "block", "reason": ...} envelope that
-# Detent registers moves against (the docs list more; this names only what MOVES uses — widen it
-# the same way DENY_CAPABLE would be widened, with a live-doc citation).
-BLOCK_CAPABLE = frozenset({"Stop", "UserPromptSubmit"})
+@dataclass(frozen=True)
+class Defer:
+    """A move's signal to route the permission decision to the PermissionRequest hook, where
+    the same move fires again and its rewrite applies as a condition of approval. Same
+    nominal-type discipline as Deny/Block: dispatch tells envelopes apart by TYPE alone."""
+    reason: str
 
 
 @dataclass(frozen=True)
