@@ -4,10 +4,12 @@
 
 Lever is a strictly passive, deterministic leverage layer for coding agents. The LLM's
 irreducible remainder is reasoning — deciding, and emitting specs. Everything else — every read,
-write, transport, verification, and presentation of fact — is machinery here: pure functions of
-the event and disk state, no model call anywhere, ever. Generation is stochastic exactly once;
-the moment output exists it is a content-addressed artifact, and every later use is a
-deterministic copy, never a re-emission.
+write, retrieval, verification, and presentation of fact — runs through deterministic machinery
+instead of the default token transport: pure functions of the event and disk state, no model
+call anywhere, ever. Generation is stochastic exactly once; the moment output exists it is a
+content-addressed artifact, and every later use is a deterministic copy, never a re-emission.
+Denial is never the point — it is only the redirect at the boundary, used exactly where the
+default path is provably identical to a free deterministic one.
 
 Read [`LAW.md`](LAW.md) (the admission test any move must pass) and [`BEDROCK.md`](BEDROCK.md)
 (the settled primitive layer: 5 stations, 20 flow cells — complete by construction, every cell
