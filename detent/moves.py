@@ -154,7 +154,6 @@ _UNEXPANDED_PATH_RX = re.compile(r'[*?\[]')
 _GREP_CONTEXT_FLAGS = {"-A", "-B", "-C"}
 
 
-@_flows("WORKSPACE→CONTEXT")
 def grep_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | None:
     """PreToolUse / Grep: inject a default head_limit when the caller omitted it entirely on
     the expensive output_mode ("content") — Grep's own documented default is unlimited, and an
@@ -171,7 +170,6 @@ def grep_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | None
     return {**tool_input, "head_limit": GREP_DEFAULT_HEAD_LIMIT}
 
 
-@_flows("WORKSPACE→CONTEXT")
 def read_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | None:
     """PreToolUse / Read: inject a default `limit` when the caller omitted it entirely on a
     file the filesystem already reports as large — the structural sibling of the Grep move.
@@ -209,7 +207,6 @@ def _captured_note(value: str, label: str, fallback: str) -> str:
             f"python3 -m detent.store slice {addr} <start> <end>")
 
 
-@_flows("WORKSPACE→CONTEXT")
 def bash_deny_raw_grep_search(event: dict[str, Any]) -> Deny | None:
     """PreToolUse / Bash: deny a raw `grep`/`rg` invocation when it sits in an exact,
     losslessly-translatable grammar, naming the equivalent Grep-tool call in the reason. A type
@@ -286,7 +283,6 @@ def bash_deny_raw_grep_search(event: dict[str, Any]) -> Deny | None:
         f"instead, with these exact parameters -- it answers the same query for free: {grep_call!r}")
 
 
-@_flows("STORE→CONTEXT")
 def subagent_warm_start(event: dict[str, Any]) -> str | None:
     """SubagentStart: inject the latest recorded test-run fact into the new subagent's opening
     context, so it starts already knowing the current test state instead of re-deriving it.
@@ -300,7 +296,6 @@ def subagent_warm_start(event: dict[str, Any]) -> str | None:
                "({provenance}) was:\n{value}]")
 
 
-@_flows("STORE→CONTEXT")
 def post_compact_re_inject(event: dict[str, Any]) -> str | None:
     """SessionStart, source=="compact" only: re-inject the same fact subagent_warm_start
     reads, so a post-compaction continuation starts already knowing the current test state.
@@ -407,7 +402,6 @@ def _expand_line_ref(path: str, ref: str) -> str | None:
     return "".join(lines[a - 1:b])
 
 
-@_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
 def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     """PreToolUse / Edit: pointers instead of transport, then the cardinality gate. An
     old_string of exactly detent://L<a>-<b> expands to those whole lines of the target file;
@@ -454,7 +448,6 @@ def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     return expanded
 
 
-@_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
 def write_by_address(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     """PreToolUse / Write: write-by-address. A content of exactly detent://<64hex>
     materializes those store bytes into the write — ~70 output characters instead of the
@@ -481,7 +474,6 @@ def write_by_address(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     return expanded
 
 
-@_flows("CONTEXT→STORE", "WORKSPACE→STORE")
 def edit_write_capture(event: dict[str, Any]) -> None:
     """PostToolUse / Edit+Write (capture): record the emission (new_string/content) and the
     resulting file state into the store — generation is stochastic once, addressable forever.
@@ -496,7 +488,6 @@ def edit_write_capture(event: dict[str, Any]) -> None:
     return None
 
 
-@_flows("USER→STORE")
 def upload_capture_on_read(event: dict[str, Any]) -> None:
     """PostToolUse / Read (capture): a user upload becomes an addressable artifact the first
     time it is read — the harness fires no upload event, so first-read is the earliest
@@ -518,7 +509,6 @@ def upload_capture_on_read(event: dict[str, Any]) -> None:
     return None
 
 
-@_flows("WORKSPACE→CONTEXT", "WORLD→CONTEXT", "WORKSPACE→STORE", "WORLD→STORE")
 def response_capture_and_bound(event: dict[str, Any]) -> dict[str, Any] | None:
     """PostToolUse / * (the wildcard row — totality by construction): for EVERY tool the
     harness has or will ever grow, capture the full response into the store (the retrieval
@@ -577,7 +567,6 @@ def _resolve_prompt_refs(prompt: str) -> str | None:
     return "[detent: referenced artifacts — " + "; ".join(parts) + "]"
 
 
-@_flows("USER→CONTEXT", "STORE→CONTEXT")
 def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
     """UserPromptSubmit: resolve any detent:// references the USER typed (machinery pushes the
     bytes; the human never re-pastes), capture the prompt as an artifact, and on an EXACT
@@ -591,7 +580,6 @@ def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
     prompt = _str_of(event, "prompt")
     if not prompt:
         return None
-    refs = _resolve_prompt_refs(prompt)
     sha = hashlib.sha256(prompt.encode()).hexdigest()
     try:
         rows = store_firings()
@@ -599,22 +587,19 @@ def prompt_capture_and_cache(event: dict[str, Any]) -> str | None:
         addr = store_put(prompt.encode())
         store_record("prompt", addr, sha=sha, prompt_id=event.get("prompt_id"))
     except (OSError, ValueError):
-        return refs
+        return None
     if not prior:
-        return refs
+        return None
     prior_id = prior[-1].get("prompt_id")
     replies = ([r for r in rows if r.get("op") == "reply" and r.get("prompt_id") == prior_id]
                if prior_id is not None else [])  # None==None must never join A's repeat to B's reply
     if replies:
-        repeat = (f"[detent: this exact prompt was submitted before; the prior reply is artifact "
-                  f"detent://{replies[-1]['address']} — `python3 -m detent.store get <address>` to "
-                  f"reuse it instead of regenerating]")
-    else:
-        repeat = "[detent: this exact prompt was submitted before (no captured reply on record)]"
-    return f"{refs}\n{repeat}" if refs else repeat
+        return (f"[detent: this exact prompt was submitted before; the prior reply is artifact "
+                f"detent://{replies[-1]['address']} — `python3 -m detent.store get <address>` to "
+                f"reuse it instead of regenerating]")
+    return "[detent: this exact prompt was submitted before (no captured reply on record)]"
 
 
-@_flows("CONTEXT→STORE", "CONTEXT→USER")
 def stop_capture_and_cite_check(event: dict[str, Any]) -> Block | None:
     """Stop: capture the reply as an artifact (keyed to prompt_id, feeding the prompt cache),
     then hold the reply to its checkable slice: any detent:// address it cites must actually
@@ -650,7 +635,6 @@ def stop_capture_and_cite_check(event: dict[str, Any]) -> Block | None:
 _CITATION_RX = re.compile(r"detent://([0-9a-f]{64})\b")
 
 
-@_flows("WORKSPACE→STORE", "WORLD→STORE")
 def failure_capture(event: dict[str, Any]) -> None:
     """PostToolUseFailure / * (capture, wildcard row): a tool failure is a fact worth an
     address — the error text is stored and the firing recorded with tool provenance, so
@@ -664,7 +648,6 @@ def failure_capture(event: dict[str, Any]) -> None:
     return None
 
 
-@_flows("CONTEXT→STORE")
 def subagent_result_capture(event: dict[str, Any]) -> None:
     """SubagentStop (capture): the subagent's final reply is window→window transport — BEDROCK
     routes that through STORE, and this move is the sanctioned-path enforcement for the result
@@ -679,7 +662,6 @@ def subagent_result_capture(event: dict[str, Any]) -> None:
     return None
 
 
-@_flows("CONTEXT→STORE")
 def compact_summary_capture(event: dict[str, Any]) -> None:
     """PostCompact (capture): the compaction summary is the survivor of a lossy operation —
     the one artifact whose loss can never be re-derived (the originals are gone from context).
@@ -692,7 +674,6 @@ def compact_summary_capture(event: dict[str, Any]) -> None:
     return None
 
 
-@_flows("STORE→USER")
 def display_materialize_citations(event: dict[str, Any]) -> str | None:
     """MessageDisplay (display tier — cell 13, STORE→USER): reply-by-address, rendered. When
     the model's streamed delta cites detent://<addr> and the artifact resolves, the DISPLAY
@@ -745,7 +726,6 @@ def _is_world_tool(name: str) -> bool:
     return name.startswith("mcp__") or name in ("WebFetch", "WebSearch")
 
 
-@_flows("CONTEXT→WORLD", "STORE→WORLD")
 def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
     """PreToolUse / * (enforcement, wildcard row): deny publishing a payload matching an exact
     secret grammar through ANY →WORLD-class tool — membership decided by _is_world_tool's
@@ -765,6 +745,100 @@ def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
     return None
 
 
+# ── the eight cell functions — ONE per punchcard cell, by owner's law (2026-07-10) ─────────
+# Every hook-served cell lists exactly one function; one function may serve several cells only
+# where provenance is undecidable at the wildcard (pinned in BEDROCK). Each is a thin event-
+# keyed composition of the exact predicates above — the predicates stay importable and
+# individually tested; the CELL is the unit of machinery.
+
+
+@_flows("WORLD→CONTEXT", "WORKSPACE→CONTEXT")
+def into_context(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """Cells 6 and 10 — everything entering the window is bounded, addressed, or redirected:
+    pre-side injects absent bounds (Grep/Read) and redirects exact-translatable raw searches
+    (Bash); post-side bounds every tool's oversized result with an address receipt."""
+    if event.get("hook_event_name") == "PreToolUse":
+        tool = event.get("tool_name")
+        if tool == "Grep":
+            return grep_bound_unbounded_content(event)
+        if tool == "Read":
+            return read_bound_unbounded_content(event)
+        if tool == "Bash":
+            return bash_deny_raw_grep_search(event)
+        return None
+    return response_capture_and_bound(event)
+
+
+@_flows("USER→STORE", "WORLD→STORE", "WORKSPACE→STORE", "CONTEXT→STORE")
+def into_store(event: dict[str, Any]) -> None:
+    """Cells 3, 8, 11, 20 — everything that exists once becomes addressable: uploads on first
+    read, every tool result and failure, every emission and resulting file state, every reply,
+    subagent reply, and compaction summary. Always returns None (pure capture; the bound leg
+    of results belongs to into_context)."""
+    name = event.get("hook_event_name")
+    if name == "PostToolUseFailure":
+        return failure_capture(event)
+    if name == "SubagentStop":
+        return subagent_result_capture(event)
+    if name == "PostCompact":
+        return compact_summary_capture(event)
+    if name == "PostToolUse":
+        if event.get("tool_name") == "Read":
+            return upload_capture_on_read(event)
+        return edit_write_capture(event)
+    return None
+
+
+@_flows("CONTEXT→WORKSPACE", "STORE→WORKSPACE")
+def context_to_workspace(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """Cells 19 and 15 (hook leg) — emissions toward disk: pointers expand (line anchors,
+    store addresses, fragments), expanded and typed anchors alike face the cardinality gate,
+    byte-identical re-emissions are denied."""
+    if event.get("tool_name") == "Edit":
+        return edit_by_reference(event)
+    return write_by_address(event)
+
+
+@_flows("CONTEXT→WORLD", "STORE→WORLD")
+def context_to_world(event: dict[str, Any]) -> Deny | None:
+    """Cells 18 and 16 (gate leg) — the entire →WORLD tool class gated on exact secret
+    grammars; transport of stored artifacts outward is store.get (spec-invoked)."""
+    return outbound_deny_secret_pattern(event)
+
+
+@_flows("CONTEXT→USER")
+def context_to_user(event: dict[str, Any]) -> Block | None:
+    """Cell 17 — the reply's checkable slice: capture, then every cited address must resolve
+    or the turn blocks."""
+    return stop_capture_and_cite_check(event)
+
+
+@_flows("USER→CONTEXT")
+def user_to_context(event: dict[str, Any]) -> str | None:
+    """Cell 1 — the prompt captured; an exact repeat advised with the prior reply's address."""
+    return prompt_capture_and_cache(event)
+
+
+@_flows("STORE→CONTEXT")
+def store_to_context(event: dict[str, Any]) -> str | None:
+    """Cell 14 — deterministic injection of the decidable slice: the latest recorded fact at
+    spawn/post-compaction, and any detent:// reference present in a prompt materialized
+    (automatic — fires only when an address already appears; no behavior is demanded)."""
+    name = event.get("hook_event_name")
+    if name == "UserPromptSubmit":
+        prompt = _str_of(event, "prompt")
+        return _resolve_prompt_refs(prompt) if prompt else None
+    if name == "SessionStart":
+        return post_compact_re_inject(event)
+    return subagent_warm_start(event)
+
+
+@_flows("STORE→USER")
+def store_to_user(event: dict[str, Any]) -> str | None:
+    """Cell 13 — reply-by-address rendered at the display boundary."""
+    return display_materialize_citations(event)
+
+
 # The table: (hook_event_name, tool_name) -> move. This is the whole mechanism. Adding a move
 # is adding one row here plus one composition above — nothing else changes (jisei's "a
 # capability is a row, never a module" discipline). SubagentStart/SessionStart have no
@@ -774,32 +848,35 @@ def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
 # to the wildcard. Coverage is a quotient of the event space, never an enumeration, so a new
 # tool can never be silently uncovered again.
 MOVES: dict[tuple[str, str | None], Any] = {
-    ("PreToolUse", "Grep"): grep_bound_unbounded_content,
-    ("PreToolUse", "Read"): read_bound_unbounded_content,
-    ("PreToolUse", "Bash"): bash_deny_raw_grep_search,
-    ("PreToolUse", "Edit"): edit_by_reference,
-    ("PreToolUse", "Write"): write_by_address,
-    ("PreToolUse", "*"): outbound_deny_secret_pattern,
-    ("PostToolUse", "Edit"): edit_write_capture,
-    ("PostToolUse", "Write"): edit_write_capture,
-    ("PostToolUse", "Read"): upload_capture_on_read,
-    ("PostToolUse", "*"): response_capture_and_bound,
-    ("PostToolUseFailure", "*"): failure_capture,
-    ("UserPromptSubmit", None): prompt_capture_and_cache,
-    ("Stop", None): stop_capture_and_cite_check,
-    ("SubagentStart", None): subagent_warm_start,
-    ("SubagentStop", None): subagent_result_capture,
-    ("SessionStart", None): post_compact_re_inject,
-    ("PostCompact", None): compact_summary_capture,
-    ("MessageDisplay", None): display_materialize_citations,
+    ("PreToolUse", "Grep"): (into_context,),
+    ("PreToolUse", "Read"): (into_context,),
+    ("PreToolUse", "Bash"): (into_context,),
+    ("PreToolUse", "Edit"): (context_to_workspace,),
+    ("PreToolUse", "Write"): (context_to_workspace,),
+    ("PreToolUse", "*"): (context_to_world,),
+    ("PostToolUse", "Edit"): (into_store,),
+    ("PostToolUse", "Write"): (into_store,),
+    ("PostToolUse", "Read"): (into_store,),
+    ("PostToolUse", "*"): (into_store, into_context),
+    ("PostToolUseFailure", "*"): (into_store,),
+    ("UserPromptSubmit", None): (store_to_context, user_to_context),
+    ("Stop", None): (context_to_user,),
+    ("SubagentStart", None): (store_to_context,),
+    ("SubagentStop", None): (into_store,),
+    ("SessionStart", None): (store_to_context,),
+    ("PostCompact", None): (into_store,),
+    ("MessageDisplay", None): (store_to_user,),
 }
 
 
 def lookup(event_name, tool_name):
-    """The total lookup: exact row, else the event's wildcard row, else None. Two tiers only —
+    """The total lookup: exact row, else the event's wildcard row, else (). Two tiers only —
     quotient membership beyond that lives INSIDE moves as exact predicates over tool_name
-    (see _is_world_tool), keeping the table a table."""
-    move = MOVES.get((event_name, tool_name))
-    if move is None and tool_name is not None:
-        move = MOVES.get((event_name, "*"))
-    return move
+    (see _is_world_tool). Returns the cell-function SEQUENCE for the key; a bare callable
+    (tests inject these) is normalized to a one-tuple."""
+    fns = MOVES.get((event_name, tool_name))
+    if fns is None and tool_name is not None:
+        fns = MOVES.get((event_name, "*"))
+    if fns is None:
+        return ()
+    return (fns,) if callable(fns) else fns

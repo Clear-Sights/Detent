@@ -19,7 +19,7 @@ def derived_move_machinery() -> dict[str, tuple[str, ...]]:
     """flow -> detent.moves.* names, derived from each move's own @_flows declaration."""
     from detent.moves import MOVES
     image: dict[str, set[str]] = {}
-    for fn in set(MOVES.values()):
+    for fn in {f for fns in MOVES.values() for f in fns}:
         for flow in getattr(fn, "flows", ()):
             image.setdefault(flow, set()).add(f"detent.moves.{fn.__name__}")
     return {flow: tuple(sorted(names)) for flow, names in image.items()}

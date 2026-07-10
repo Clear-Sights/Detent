@@ -53,10 +53,19 @@ _STR_ENVELOPE_KEY = {
 def route(event: dict[str, Any]) -> dict[str, Any]:
     hook_event_name = event.get("hook_event_name")
     tool_name = event.get("tool_name")
-    move = lookup(hook_event_name, tool_name)
-    if move is None:
-        return {}
-    replacement = move(event)
+    advisories = []
+    replacement = None
+    for move in lookup(hook_event_name, tool_name):
+        result = move(event)
+        if result is None:
+            continue
+        if isinstance(result, str):
+            advisories.append(result)   # advisories accumulate across cell functions
+            continue
+        replacement = result            # first non-advisory envelope wins; later fns skipped
+        break
+    if replacement is None and advisories:
+        replacement = "\n".join(advisories)
     if replacement is None:
         return {}
     if isinstance(replacement, Block):
