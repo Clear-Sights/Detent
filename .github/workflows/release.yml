@@ -3,8 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to create (e.g. v0.1.0)"
+        description: "Tag to create (e.g. v0.1.0). If the tag already exists, this run edits that release's notes instead of creating a new one."
         required: true
+      notes:
+        description: "Release notes body (markdown). Leave empty for GitHub's auto-generated notes."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -23,12 +27,31 @@ jobs:
         run: python -m pytest tests/ -q
       - name: status trace certifies
         run: python -m detent
-      - name: tag and release
+      - name: tag and release (or edit notes on an existing release)
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ inputs.notes }}
         run: |
           git config user.name "Clear-Sights"
           git config user.email "clear-sights@users.noreply.github.com"
-          git tag -a "${{ inputs.tag }}" -m "Detent ${{ inputs.tag }}"
-          git push origin "refs/tags/${{ inputs.tag }}"
-          gh release create "${{ inputs.tag }}" --generate-notes --title "Detent ${{ inputs.tag }}"
+          if [ -n "$RELEASE_NOTES" ]; then
+            printf '%s' "$RELEASE_NOTES" > /tmp/release-notes.md
+          fi
+          if git rev-parse "refs/tags/${{ inputs.tag }}" >/dev/null 2>&1 || \
+             gh release view "${{ inputs.tag }}" >/dev/null 2>&1; then
+            # tag/release already exists: edit notes only, never re-tag
+            if [ -n "$RELEASE_NOTES" ]; then
+              gh release edit "${{ inputs.tag }}" --notes-file /tmp/release-notes.md
+            else
+              echo "tag ${{ inputs.tag }} already exists and no notes were given -- nothing to do" >&2
+              exit 1
+            fi
+          else
+            git tag -a "${{ inputs.tag }}" -m "Detent ${{ inputs.tag }}"
+            git push origin "refs/tags/${{ inputs.tag }}"
+            if [ -n "$RELEASE_NOTES" ]; then
+              gh release create "${{ inputs.tag }}" --notes-file /tmp/release-notes.md --title "Detent ${{ inputs.tag }}"
+            else
+              gh release create "${{ inputs.tag }}" --generate-notes --title "Detent ${{ inputs.tag }}"
+            fi
+          fi
