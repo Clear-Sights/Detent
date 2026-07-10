@@ -193,6 +193,13 @@ repeat-transport decline stands, and the repeated-identical-call tail is dominat
 legitimate re-execution (files re-read after edits, release polling), which no exact
 predicate can distinguish from waste without judgment.
 
+Declined 2026-07-10 — Bash command-payload pointers: expansion of detent:// references
+inside Bash command strings (the heredoc-transport class) measured **0.0%** on the full build
+corpus — 483 commands, 336k command chars, zero ≥200-char blocks re-typed from bytes already
+in the window. Command payloads are first emissions in practice; and the deterministic path
+already exists natively for the rare copy (`python3 -m detent.store get|slice|materialize`,
+composable in-shell), so a rewrite would duplicate a native route (prefer-native rule).
+
 Declined 2026-07-10 — NotebookEdit specialists: a `("PreToolUse", "NotebookEdit")` row
 (pointer expansion / identical-emission deny over `new_source`) and a notebook leg in
 `edit_write_capture` measured **0 occurrences** on the full build corpus (main session +
