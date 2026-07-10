@@ -153,8 +153,11 @@ an enumerated tool list can never be proven total against an open tool set — a
 silently uncovered forever, and that latency is undetectable from inside the list. Coverage is
 therefore defined over event CLASSES: exact rows only for genuine specialists, a wildcard row
 ("*") for the whole class, and membership predicates (e.g. the →WORLD class) as exact φ-guards
-over tool_name INSIDE moves. `lookup` (exact, else wildcard) has no uncovered case by
-construction, and the executable proof feeds tools that do not exist yet through the real wire. One hazard from the harness's own docs, pinned: when two
+over tool_name INSIDE moves. The wildcard row is the event-class LAW: `lookup` composes it
+BEFORE any exact row (law first, specialist after — never instead), so no specialist row can
+ever be a private route around a class gate, and a specialist rewrite can never preempt a
+gate's deny. `lookup` has no uncovered case by construction, and the executable proof feeds
+tools that do not exist yet through the real wire. One hazard from the harness's own docs, pinned: when two
 `PreToolUse` hooks both set `updatedInput`, the last to finish wins and their order is
 non-deterministic — Detent must therefore be the sole `updatedInput` writer for any tool it
 rewrites, or its own purity claim breaks at the hook boundary.
@@ -183,6 +186,14 @@ Benefit claims are computed by deterministic replay (`tools/measure.py`), never 
 proposed move whose replacement measures ~0 on the relevant corpus is not built, and that
 decision is recorded (see MEMOIZE's reroute and the reply-quote gate: both measured ~0 on the
 build corpus, both declined on the record rather than built as theater).
+
+Declined 2026-07-10 — NotebookEdit specialists: a `("PreToolUse", "NotebookEdit")` row
+(pointer expansion / identical-emission deny over `new_source`) and a notebook leg in
+`edit_write_capture` measured **0 occurrences** on the full build corpus (main session +
+subagents, 900+ tool calls). NotebookEdit is not uncovered — the class laws still hold it
+(outbound gate at pre via the wildcard row; result capture and bound at post via the
+universal route); only the workspace-write specialists are declined until a corpus shows
+the tool in use.
 
 **Prefer-native rule** (2026-07-10): where the harness already provides a deterministic path,
 Detent uses it, defers to it, or must be measurably better — never a duplicate. Pinned

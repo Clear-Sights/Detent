@@ -843,10 +843,11 @@ def store_to_user(event: dict[str, Any]) -> str | None:
 # is adding one row here plus one composition above — nothing else changes (jisei's "a
 # capability is a row, never a module" discipline). SubagentStart/SessionStart have no
 # tool_name (lifecycle events, not tool calls), so their key's second element is None.
-# "*" rows are the totality guarantee: an exact row wins where a genuine specialist exists;
-# EVERYTHING else in that event class — including tools that do not exist yet — falls through
-# to the wildcard. Coverage is a quotient of the event space, never an enumeration, so a new
-# tool can never be silently uncovered again.
+# "*" rows are the totality guarantee AND the event-class law: they fire for EVERY tool in
+# the class — including tools that do not exist yet and tools that also have an exact row.
+# Exact rows only ADD specialists (composed after the law by lookup, never instead of it).
+# Coverage is a quotient of the event space, never an enumeration, so a new tool can never
+# be silently uncovered — and no specialist row can ever be a private route around a gate.
 MOVES: dict[tuple[str, str | None], Any] = {
     ("PreToolUse", "Grep"): (into_context,),
     ("PreToolUse", "Read"): (into_context,),
@@ -867,10 +868,12 @@ MOVES: dict[tuple[str, str | None], Any] = {
 
 
 def lookup(event_name, tool_name):
-    """The total lookup: exact row, else the event's wildcard row, else (). Two tiers only —
-    quotient membership beyond that lives INSIDE moves as exact predicates over tool_name
-    (see _is_world_tool). Returns the cell-function SEQUENCE for the key."""
-    fns = MOVES.get((event_name, tool_name))
-    if fns is None and tool_name is not None:
-        fns = MOVES.get((event_name, "*"))
-    return fns or ()
+    """The total lookup: the event's wildcard row is the CLASS LAW and fires for every tool
+    in the class; an exact row adds a specialist AFTER it. Composition, never shadowing — a
+    specialist row cannot create a private route around a class gate, and law-first ordering
+    means a specialist rewrite can never preempt a gate's deny (dispatch stops at the first
+    envelope). Quotient membership beyond the two tiers lives INSIDE moves as exact
+    predicates over tool_name (see _is_world_tool)."""
+    law = (MOVES.get((event_name, "*")) or ()) if tool_name not in (None, "*") else ()
+    exact = MOVES.get((event_name, tool_name)) or ()
+    return tuple(law) + tuple(exact)
