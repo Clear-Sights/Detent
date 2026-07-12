@@ -154,44 +154,84 @@ _UNEXPANDED_PATH_RX = re.compile(r'[*?\[]')
 _GREP_CONTEXT_FLAGS = {"-A", "-B", "-C"}
 
 
-def grep_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | None:
-    """PreToolUse / Grep: inject a default head_limit when the caller omitted it entirely on
-    the expensive output_mode ("content") — Grep's own documented default is unlimited, and an
-    unbounded content-mode search is a real, common, silent token cost with no upside.
+# ── the bound law, one composition over rows ────────────────────────────────────────────────
+# One law, stated once: when the caller OMITTED every field that would state an explicit bound
+# on a read the row's own precondition proves expensive, inject the row's default. φ's operands
+# are data — each row names the fields whose presence means "the caller already decided"
+# (never overridden, including an explicit 0), the default to inject, and the exact, total
+# precondition π under which the read is expensive. Covering a future unbounded tool is adding
+# one row here plus its MOVES entry — never another function, never another branch.
+#
+# Two α tiers, configuration not judgment (DETENT_BOUNDS_MODE): "inject" (default) silently
+# supplies the bound — free, zero round trips, and the default BECAUSE of Detent's own
+# admission law (never more expensive, never slower than the agent doing it itself). "deny"
+# is the teaching contract: the call is refused with the exact same call plus the bound named
+# in the reason, so the caller learns to state bounds up front and Detent's resting state is
+# doing nothing — one round trip per violation, bought deliberately, never silently.
+BOUNDS_MODE = os.environ.get("DETENT_BOUNDS_MODE", "inject")
 
-    Does NOT touch: other output modes (bounded by nature), or a head_limit the caller set
-    explicitly — including an explicit 0, respected as "I mean it, truly unlimited." Only an
-    *absent* key is corrected."""
-    tool_input = _input(event)
-    if tool_input.get("output_mode", "files_with_matches") != "content":
-        return None
-    if "head_limit" in tool_input:
-        return None
-    return {**tool_input, "head_limit": GREP_DEFAULT_HEAD_LIMIT}
 
-
-def read_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | None:
-    """PreToolUse / Read: inject a default `limit` when the caller omitted it entirely on a
-    file the filesystem already reports as large — the structural sibling of the Grep move.
-    A byte threshold, not a line count: counting lines would mean reading the whole file,
-    the exact cost this move exists to avoid.
-
-    Does NOT touch: a `limit` or `offset` the caller set explicitly — only an *absent* key is
-    corrected. A missing/unreadable/unstat-able path is silently untouched (fail open) — this
-    move only ever adds a bound, never blocks or errors the call."""
-    tool_input = _input(event)
-    if "limit" in tool_input or "offset" in tool_input:
-        return None
+def _read_is_large(tool_input: dict[str, Any]) -> bool:
+    """π for the Read row: the filesystem already reports the target large. A byte threshold,
+    not a line count — counting lines would mean reading the whole file, the exact cost the
+    row exists to avoid. Missing/unreadable/unstat-able path is False (fail open): the law
+    only ever adds a bound, never blocks or errors the call."""
     file_path = _str_of(tool_input, "file_path")
     if not file_path:
+        return False
+    try:
+        return os.stat(file_path).st_size > READ_LARGE_FILE_BYTES
+    except OSError:
+        return False
+
+
+BOUNDS: dict[str, dict[str, Any]] = {
+    # Grep's documented default is unlimited, and an unbounded content-mode search is a real,
+    # common, silent token cost with no upside; other output modes are bounded by nature.
+    "Grep": {"explicit": ("head_limit",),
+             "inject": {"head_limit": GREP_DEFAULT_HEAD_LIMIT},
+             "when": lambda ti: ti.get("output_mode", "files_with_matches") == "content"},
+    # The structural sibling: an unbounded Read of a file the filesystem reports as large.
+    # `offset` counts as explicit intent too — a caller navigating the file has decided.
+    "Read": {"explicit": ("limit", "offset"),
+             "inject": {"limit": READ_DEFAULT_LIMIT},
+             "when": _read_is_large},
+}
+
+
+def _bound_absent_key(event: dict[str, Any], row: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """The law itself. Does NOT touch: any input where an `explicit` field is present however
+    it is valued (an explicit 0 — or an explicit null — is respected as "the caller decided"),
+    or where the row's precondition doesn't hold. Only an *absent* key is ever corrected.
+    Explicitness is key-PRESENCE, never a value check. Law 1 is owed by the law, not by each
+    row's author: a `when` that raises on odd input is treated as False (fail open), so a
+    future row cannot break guard totality however carelessly its π is written."""
+    tool_input = _input(event)
+    if any(key in tool_input for key in row["explicit"]):
         return None
     try:
-        size = os.stat(file_path).st_size
-    except OSError:
+        expensive = bool(row["when"](tool_input))
+    except (AttributeError, TypeError, ValueError, KeyError, OSError):
         return None
-    if size <= READ_LARGE_FILE_BYTES:
+    if not expensive:
         return None
-    return {**tool_input, "limit": READ_DEFAULT_LIMIT}
+    if BOUNDS_MODE == "deny":
+        bounded = {**tool_input, **row["inject"]}
+        return Deny(
+            f"Denied: this call is unbounded on an expensive read — state the bound "
+            f"explicitly (an explicit 0 means truly unlimited and is always respected). "
+            f"The same call, bounded with the default: {bounded!r}")
+    return {**tool_input, **row["inject"]}
+
+
+def grep_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """PreToolUse / Grep: the bound law applied to the Grep row — see BOUNDS."""
+    return _bound_absent_key(event, BOUNDS["Grep"])
+
+
+def read_bound_unbounded_content(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
+    """PreToolUse / Read: the bound law applied to the Read row — see BOUNDS."""
+    return _bound_absent_key(event, BOUNDS["Read"])
 
 
 def _captured_note(value: str, label: str, fallback: str) -> str:
@@ -654,43 +694,45 @@ def stop_capture_and_cite_check(event: dict[str, Any]) -> Block | None:
 _CITATION_RX = re.compile(r"detent://([0-9a-f]{64})\b")
 
 
+def _record_capture(event: dict[str, Any], field: str, op: str, **kwargs: Any) -> None:
+    """The shared shape under failure/subagent-result/compact-summary capture: read one string
+    field off `event`, store it, and append a ledger row under `op` with the given kwargs.
+    Always returns None; fails open (via `_capture`) on storage errors. The three callers below
+    are this one read(event field)→write(store+ledger) copy, differing only in which field,
+    which op name, and which kwargs — not in shape. kwargs evaluate eagerly in the caller,
+    OUTSIDE `_capture`'s protection — keep them side-effect-free and non-raising (plain
+    `dict.get`/`bool`), never an expression that could itself fail."""
+    value = _str_of(event, field)
+    if not value:
+        return None
+    _capture(lambda: store_record(op, store_put(value.encode()), **kwargs))
+    return None
+
+
 def failure_capture(event: dict[str, Any]) -> None:
     """PostToolUseFailure / * (capture, wildcard row): a tool failure is a fact worth an
     address — the error text is stored and the firing recorded with tool provenance, so
-    failure history is queryable from the ledger instead of scrollback. Always returns None."""
-    error = _str_of(event, "error")
-    if not error:
-        return None
-    _capture(lambda: store_record("failure", store_put(error.encode()),
-                                  tool=event.get("tool_name"),
-                                  interrupt=bool(event.get("is_interrupt"))))
-    return None
+    failure history is queryable from the ledger instead of scrollback."""
+    return _record_capture(event, "error", "failure",
+                           tool=event.get("tool_name"),
+                           interrupt=bool(event.get("is_interrupt")))
 
 
 def subagent_result_capture(event: dict[str, Any]) -> None:
     """SubagentStop (capture): the subagent's final reply is window→window transport — BEDROCK
     routes that through STORE, and this move is the sanctioned-path enforcement for the result
     leg: every subagent reply becomes a hash-addressed, replayable artifact at the moment it
-    exists. Always returns None."""
-    message = _str_of(event, "last_assistant_message")
-    if not message:
-        return None
-    _capture(lambda: store_record("subagent_reply", store_put(message.encode()),
-                                  agent_id=event.get("agent_id"),
-                                  agent_type=event.get("agent_type")))
-    return None
+    exists."""
+    return _record_capture(event, "last_assistant_message", "subagent_reply",
+                           agent_id=event.get("agent_id"),
+                           agent_type=event.get("agent_type"))
 
 
 def compact_summary_capture(event: dict[str, Any]) -> None:
     """PostCompact (capture): the compaction summary is the survivor of a lossy operation —
     the one artifact whose loss can never be re-derived (the originals are gone from context).
-    Stored and recorded with its trigger. Always returns None."""
-    summary = _str_of(event, "compact_summary")
-    if not summary:
-        return None
-    _capture(lambda: store_record("compact", store_put(summary.encode()),
-                                  trigger=event.get("trigger")))
-    return None
+    Stored and recorded with its trigger."""
+    return _record_capture(event, "compact_summary", "compact", trigger=event.get("trigger"))
 
 
 def display_materialize_citations(event: dict[str, Any]) -> str | None:
@@ -774,16 +816,19 @@ def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
 @_flows("WORLD→CONTEXT", "WORKSPACE→CONTEXT")
 def into_context(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
     """Cells 6 and 10 — everything entering the window is bounded, addressed, or redirected:
-    pre-side injects absent bounds (Grep/Read) and redirects exact-translatable raw searches
-    (Bash); post-side bounds every tool's oversized result with an address receipt."""
+    pre-side injects absent bounds (any tool with a BOUNDS row) and redirects
+    exact-translatable raw searches (Bash); post-side bounds every tool's oversized result
+    with an address receipt."""
     if event.get("hook_event_name") == "PreToolUse":
         tool = event.get("tool_name")
-        if tool == "Grep":
-            return grep_bound_unbounded_content(event)
-        if tool == "Read":
-            return read_bound_unbounded_content(event)
         if tool == "Bash":
+            # Gate before rewrite, same law-first ordering lookup() enforces between MOVES
+            # rows: a future BOUNDS row for Bash could otherwise silently shadow this deny —
+            # a table edit must never be able to open a private route around a gate.
             return bash_deny_raw_grep_search(event)
+        row = BOUNDS.get(tool) if isinstance(tool, str) else None
+        if row is not None:
+            return _bound_absent_key(event, row)
         return None
     return response_capture_and_bound(event)
 
