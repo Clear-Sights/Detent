@@ -112,13 +112,29 @@ def _rewrite_cases(tmp_path):
 
 
 @pytest.mark.parametrize("move_name", _rewrite_move_names())
-def test_rewrite_idempotence(move_name, tmp_path):
+def test_rewrite_idempotence(move_name, tmp_path, monkeypatch):
+    import detent.moves as m
+    monkeypatch.setattr(m, "BOUNDS_MODE", "inject")   # the law governs the rewrite alpha
     cases = _rewrite_cases(tmp_path)
     assert move_name in cases, f"{move_name}: rewrite move with no idempotence fixture"
     fn, event, apply_rewrite = cases[move_name]
     first = fn(dict(event))
     assert isinstance(first, dict), f"{move_name}: fixture must trigger the rewrite"
     assert fn(apply_rewrite(event, first)) is None, f"{move_name}: m∘m must be ⊥"
+
+
+def test_deny_default_reaches_its_own_fixpoint():
+    # The deny tier's idempotence analog, live-verified 2026-07-12: the deny names the exact
+    # bounded call; an event carrying that named input is the fixpoint (⊥, no opinion).
+    from detent.contract import Deny
+    from detent.moves import into_context
+    event = {"hook_event_name": "PreToolUse", "tool_name": "Grep",
+             "tool_input": {"pattern": "x", "output_mode": "content"}}
+    first = into_context(dict(event))
+    assert isinstance(first, Deny)
+    import ast
+    named = ast.literal_eval(first.reason.split("bounded with the default: ", 1)[1])
+    assert into_context({**event, "tool_input": named}) is None
 
 
 def test_rewrite_fixtures_name_only_real_rewrite_moves(tmp_path):

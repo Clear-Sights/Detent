@@ -162,13 +162,16 @@ _GREP_CONTEXT_FLAGS = {"-A", "-B", "-C"}
 # precondition π under which the read is expensive. Covering a future unbounded tool is adding
 # one row here plus its MOVES entry — never another function, never another branch.
 #
-# Two α tiers, configuration not judgment (DETENT_BOUNDS_MODE): "inject" (default) silently
-# supplies the bound — free, zero round trips, and the default BECAUSE of Detent's own
-# admission law (never more expensive, never slower than the agent doing it itself). "deny"
-# is the teaching contract: the call is refused with the exact same call plus the bound named
-# in the reason, so the caller learns to state bounds up front and Detent's resting state is
-# doing nothing — one round trip per violation, bought deliberately, never silently.
-BOUNDS_MODE = os.environ.get("DETENT_BOUNDS_MODE", "inject")
+# Two α tiers, configuration not judgment (DETENT_BOUNDS_MODE): "deny" (default) is the
+# teaching contract — the call is refused with the exact same call plus the bound named in
+# the reason, so the caller learns to state bounds up front and Detent's resting state is
+# doing nothing. OWNER DECISION 2026-07-12, after a live in-session test (unbounded
+# content-mode Grep denied with the exact bounded call named; the model restated the bound
+# and passed on the next call): the round trip per violation is bought deliberately for the
+# session-level behavior shift, overriding the admission law's cheaper choice on the owner's
+# say-so, on the record. "inject" (one env flip away) silently supplies the bound instead —
+# free, zero round trips, the admission-law default this tier replaced.
+BOUNDS_MODE = os.environ.get("DETENT_BOUNDS_MODE", "deny")
 
 
 def _read_is_large(tool_input: dict[str, Any]) -> bool:

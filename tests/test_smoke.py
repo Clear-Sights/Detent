@@ -35,9 +35,22 @@ def test_punchcard_certifies():
     assert coverage_failures() == []
 
 
-def test_dispatch_rewrites_on_the_wire():
+def test_dispatch_denies_unbounded_grep_on_the_wire():
+    # deny is the default alpha for the bound law (owner decision 2026-07-12, live-tested):
+    # the reason names the exact bounded call so the caller can restate it verbatim.
     out = _dispatch({"hook_event_name": "PreToolUse", "tool_name": "Grep",
                      "tool_input": {"pattern": "x", "output_mode": "content"}})
+    assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert "head_limit" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_dispatch_rewrites_on_the_wire():
+    os.environ["DETENT_BOUNDS_MODE"] = "inject"
+    try:
+        out = _dispatch({"hook_event_name": "PreToolUse", "tool_name": "Grep",
+                         "tool_input": {"pattern": "x", "output_mode": "content"}})
+    finally:
+        os.environ.pop("DETENT_BOUNDS_MODE", None)
     updated = out["hookSpecificOutput"]["updatedInput"]
     assert updated["head_limit"] > 0
 
