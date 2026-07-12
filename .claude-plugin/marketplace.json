@@ -1,0 +1,15 @@
+{
+  "name": "detent",
+  "owner": {"name": "Clear-Sights", "url": "https://github.com/Clear-Sights"},
+  "plugins": [
+    {
+      "name": "detent",
+      "source": "./",
+      "description": "A strictly passive, deterministic leverage layer for coding agents: the LLM only reasons; machinery does every read, write, transport, and verification it provably can.",
+      "category": "workflow",
+      "tags": ["determinism", "hooks", "content-addressed", "context"],
+      "license": "Apache-2.0",
+      "homepage": "https://github.com/Clear-Sights/Detent"
+    }
+  ]
+}

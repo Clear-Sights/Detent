@@ -31,8 +31,13 @@ PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a state — sh
 
 ## Install (plugin)
 
-Enable the plugin — that's the whole install. `.claude-plugin/plugin.json` +
-`hooks/hooks.json` auto-wire dispatch on enable; enabling **is** the sign-off.
+```
+/plugin marketplace add Clear-Sights/Detent
+/plugin install detent@detent
+```
+
+Enabling the plugin is the whole install and the sign-off: `.claude-plugin/plugin.json` +
+`hooks/hooks.json` auto-wire dispatch on enable.
 
 For development:
 
