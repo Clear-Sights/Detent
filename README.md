@@ -11,9 +11,10 @@ content-addressed artifact, and every later use is a deterministic copy, never a
 Denial is never the point — it is only the redirect at the boundary, used exactly where the
 default path is provably identical to a free deterministic one.
 
-Read [`LAW.md`](LAW.md) (the admission test any move must pass) and [`BEDROCK.md`](BEDROCK.md)
-(the settled primitive layer: 5 stations, 20 flow cells — complete by construction, every cell
-SERVED, PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a state).
+Read [`LAW.md`](LAW.md) (the admission test any move must pass). The primitive layer itself —
+5 stations, 20 flow cells, complete by construction, every cell SERVED,
+PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a state — ships as code:
+`detent/cells.py`, the punchcard.
 
 ## What's here
 
@@ -23,7 +24,7 @@ SERVED, PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a stat
 | `detent/dispatch.py` | the pivot: one stdin→stdout hook entrypoint; `(event, tool)` table lookup; picks the envelope by return type, never by content |
 | `detent/moves.py` | the arms: every move is one composition **m = α∘φ∘π** — total projections, exact guards, typed envelope actions; 17 moves across three tiers, enforcement (pure), capture (write only to the store, atomically), and display (render-by-address at the screen boundary), each declaring its own station flows; coverage is a quotient, not an enumeration — wildcard rows bound EVERY tool's oversized output and gate the whole →WORLD class, including tools that don't exist yet |
 | `detent/store.py` | the substrate: content-addressed artifact store — `put`/`get`/`materialize`/`slice` + an append-only firing ledger; identical bytes coincide, so N concurrent writers need zero coordination |
-| `detent/cells.py` | the punchcard: BEDROCK's 20-cell coverage as data; the move rows are *derived* from each move's own flow declaration, reconciled against the doc AND against importable reality by tests — coverage drift is a red test, not a discovery |
+| `detent/cells.py` | the punchcard: the 20-cell coverage topology as data; the move rows are *derived* from each move's own flow declaration, reconciled against importable reality by tests — coverage drift is a red test, not a discovery |
 | `tests/test_laws.py` | the universal laws, one parametrized test each over ALL moves: guard totality, rewrite idempotence (m∘m = ⊥), store monotonicity (CALM: monotone ⇒ coordination-free) |
 | `detent/facts.py` | verified-fact reader (Makoto's hash-verified chain, or the session transcript) feeding the injection moves |
 | `tools/mine_corpus.py` | corpus probe: re-derives what actually fires in your environment |

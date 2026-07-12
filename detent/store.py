@@ -2,7 +2,7 @@
 
 The substrate CALLED BY the machinery of BEDROCK cells 3/8/11/20 (X→STORE, `put`), 13/15/16
 (STORE→X, `get`/`materialize`), and the bounded payloads of 6/10/14 (`slice_lines` — the only
-shape in which bytes may enter CONTEXT). Cell wiring status lives in BEDROCK.md's table, not
+shape in which bytes may enter CONTEXT). Cell wiring status lives in the dev repo's BEDROCK.md table, not
 here — a primitive existing does not mark a cell SERVED. Layout under $DETENT_STORE_DIR
 (default ~/.claude/detent_store): `objects/<sha256hex>` immutable artifacts named by their own
 checksum; `firings.jsonl` the append-only ledger, one JSON line per operation.

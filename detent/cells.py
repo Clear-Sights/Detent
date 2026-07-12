@@ -8,7 +8,7 @@ move and its cell row cannot drift apart. Hand-declared entries remain only for 
 is not a move: store primitives (`detent.store.*`) and declared-external `harness:` / `env:`
 mechanisms. Dotted `detent.` paths are import-checked by `coverage_failures()` (CONSERVE run on
 Detent itself — machinery that vanished fails loudly, never silently); tests/test_cells.py
-reconciles this dict against BEDROCK.md's table in both directions.
+reconciles this dict against the dev repo's BEDROCK.md table in both directions.
 """
 from __future__ import annotations
 
