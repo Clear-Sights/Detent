@@ -440,52 +440,37 @@ def _expand_line_ref(path: str, ref: str) -> str | None:
     if a < 1 or b < a or b > len(lines):
         return None
     return "".join(lines[a - 1:b])
-
-
-def edit_by_reference(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
-    """PreToolUse / Edit: pointers instead of transport, then the cardinality gate. An
-    old_string of exactly detent://L<a>-<b> expands to those whole lines of the target file;
-    an old_string or new_string of exactly detent://<64hex> expands to those store bytes —
-    the model emits a reference, machinery moves the bytes. The expanded anchor is then held
-    to the SAME cardinality contract as a hand-typed one (a line-derived block that repeats
-    elsewhere in the file is ambiguous and denied, never guessed), and a non-reference Edit
-    passes straight through to edit_deny_ambiguous_anchor unchanged.
-
-    Does NOT touch: strings that are not exactly a reference (no scanning inside content),
-    unreadable files, out-of-range line references (fall through untouched — the ordinary
-    anchor match will fail loudly at the tool instead).
-
-    Seam, pinned 2026-07-10: this client validates Edit.old_string against the file BEFORE
-    PreToolUse rewrites apply, so a pre-side expansion is dead on arrival. The harness's own
-    documented route: the pre side answers permissionDecision "defer", this same expansion
-    fires again at PermissionRequest, and decision.updatedInput applies as a condition of
-    approval — before the client's validation. context_to_workspace owns that event split;
-    this function only computes the expansion."""
+def _edit_by_reference_focused(event):
     tool_input = _input(event)
-    file_path = _str_of(tool_input, "file_path")
-    old = _str_of(tool_input, "old_string")
-    new = _str_of(tool_input, "new_string")
+    file_path = _str_of(tool_input, 'file_path')
+    old = _str_of(tool_input, 'old_string')
+    new = _str_of(tool_input, 'new_string')
     expanded = dict(tool_input)
     changed = False
     if file_path and old:
-        for value, key in ((old, "old_string"), (new, "new_string")):
+        for value, key in ((old, 'old_string'), (new, 'new_string')):
             if value is None:
                 continue
             body = _resolve_addr_ref(value)
             if body is not None:
                 expanded[key] = body
                 changed = True
-            elif key == "old_string":
+            elif key == 'old_string':
                 lines = _expand_line_ref(file_path, value)
                 if lines is not None:
                     expanded[key] = lines
                     changed = True
+    return changed, expanded
+
+
+def edit_by_reference(event: dict[str, Any]):
+    'PreToolUse / Edit: pointers instead of transport, then the cardinality gate. An\n    old_string of exactly detent://L<a>-<b> expands to those whole lines of the target file;\n    an old_string or new_string of exactly detent://<64hex> expands to those store bytes —\n    the model emits a reference, machinery moves the bytes. The expanded anchor is then held\n    to the SAME cardinality contract as a hand-typed one (a line-derived block that repeats\n    elsewhere in the file is ambiguous and denied, never guessed), and a non-reference Edit\n    passes straight through to edit_deny_ambiguous_anchor unchanged.\n\n    Does NOT touch: strings that are not exactly a reference (no scanning inside content),\n    unreadable files, out-of-range line references (fall through untouched — the ordinary\n    anchor match will fail loudly at the tool instead).\n\n    Seam, pinned 2026-07-10: this client validates Edit.old_string against the file BEFORE\n    PreToolUse rewrites apply, so a pre-side expansion is dead on arrival. The harness\'s own\n    documented route: the pre side answers permissionDecision "defer", this same expansion\n    fires again at PermissionRequest, and decision.updatedInput applies as a condition of\n    approval — before the client\'s validation. context_to_workspace owns that event split;\n    this function only computes the expansion.'
+    changed, expanded = _edit_by_reference_focused(event)
     if not changed:
         return edit_deny_ambiguous_anchor(event)
-    gate = edit_deny_ambiguous_anchor({**event, "tool_input": expanded})
+    gate = edit_deny_ambiguous_anchor({**event, 'tool_input': expanded})
     if isinstance(gate, Deny):
-        return Deny(f"{gate.reason} (anchor was expanded from a detent:// reference — widen "
-                    f"the line range until the block is unique)")
+        return Deny(f'{gate.reason} (anchor was expanded from a detent:// reference — widen the line range until the block is unique)')
     return expanded
 
 

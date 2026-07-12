@@ -12,38 +12,35 @@ import sys
 from pathlib import Path
 
 from detent.cells import CELLS, coverage_failures
-
-
-def main() -> int:
+def _main_focused():
     wired = []
-    for p in (Path.home() / ".claude" / "settings.json",
-              Path(".claude") / "settings.json",
-              Path(".claude") / "settings.local.json"):
+    for p in (Path.home() / '.claude' / 'settings.json', Path('.claude') / 'settings.json', Path('.claude') / 'settings.local.json'):
         try:
-            if "detent" in p.read_text():
+            if 'detent' in p.read_text():
                 wired.append(str(p))
         except OSError:
             pass
-    print(f"wiring: {', '.join(wired) if wired else 'NOT WIRED (no active config references detent)'}")
-
+    print(f"wiring: {(', '.join(wired) if wired else 'NOT WIRED (no active config references detent)')}")
     counts: dict[str, int] = {}
     for n in sorted(CELLS):
         cell = CELLS[n]
-        counts[cell["status"]] = counts.get(cell["status"], 0) + 1
-        detail = ", ".join(cell.get("machinery", ())) or cell.get("reason", "")
+        counts[cell['status']] = counts.get(cell['status'], 0) + 1
+        detail = ', '.join(cell.get('machinery', ())) or cell.get('reason', '')
         print(f"cell {n:>2} {cell['flow']:<22} {cell['status']:<7} {detail}")
-    print("coverage: " + " ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+    print('coverage: ' + ' '.join((f'{k}={v}' for k, v in sorted(counts.items()))))
 
-    store_root = Path(os.environ.get("DETENT_STORE_DIR", "~/.claude/detent_store")).expanduser()
-    objects = store_root / "objects"
-    ledger = store_root / "firings.jsonl"
+
+def main():
+    _main_focused()
+    store_root = Path(os.environ.get('DETENT_STORE_DIR', '~/.claude/detent_store')).expanduser()
+    objects = store_root / 'objects'
     n_objects = len(list(objects.iterdir())) if objects.is_dir() else 0
-    n_firings = sum(1 for line in ledger.read_text().splitlines() if line) if ledger.is_file() else 0
-    print(f"store: {n_objects} objects, {n_firings} firings ({store_root})")
-
+    ledger = store_root / 'firings.jsonl'
+    n_firings = sum((1 for line in ledger.read_text().splitlines() if line)) if ledger.is_file() else 0
+    print(f'store: {n_objects} objects, {n_firings} firings ({store_root})')
     failures = coverage_failures()
     for f in failures:
-        print(f"FAIL {f}", file=sys.stderr)
+        print(f'FAIL {f}', file=sys.stderr)
     return 1 if failures else 0
 
 

@@ -63,11 +63,9 @@ ENVELOPE: dict[tuple[str, type], Any] = {
 }
 
 _DECISION_TYPES = (Deny, Block, Defer)
-
-
-def route(event: dict[str, Any]) -> dict[str, Any]:
-    hook_event_name = event.get("hook_event_name")
-    tool_name = event.get("tool_name")
+def _route_focused(event):
+    hook_event_name = event.get('hook_event_name')
+    tool_name = event.get('tool_name')
     advisories = []
     replacement = None
     for move in lookup(hook_event_name, tool_name):
@@ -75,23 +73,24 @@ def route(event: dict[str, Any]) -> dict[str, Any]:
         if result is None:
             continue
         if isinstance(result, str):
-            advisories.append(result)   # advisories accumulate across cell functions
+            advisories.append(result)
             continue
-        replacement = result            # first non-advisory envelope wins; later fns skipped
+        replacement = result
         break
     if replacement is None and advisories:
-        replacement = "\n".join(advisories)
+        replacement = '\n'.join(advisories)
+    return hook_event_name, replacement
+
+
+def route(event: dict[str, Any]):
+    hook_event_name, replacement = _route_focused(event)
     if replacement is None:
         return {}
     shape = ENVELOPE.get((hook_event_name, type(replacement)))
     if shape is None:
         if isinstance(replacement, _DECISION_TYPES):
-            raise RuntimeError(
-                f"a move for {hook_event_name!r} returned {type(replacement).__name__}, but "
-                f"ENVELOPE has no ({hook_event_name!r}, {type(replacement).__name__}) row -- "
-                f"a Detent wiring bug (an enforcement promise the protocol can't express "
-                f"here), never a data problem.")
-        return {}  # dict/str with no row: refuse silently — the documented resting state
+            raise RuntimeError(f"a move for {hook_event_name!r} returned {type(replacement).__name__}, but ENVELOPE has no ({hook_event_name!r}, {type(replacement).__name__}) row -- a Detent wiring bug (an enforcement promise the protocol can't express here), never a data problem.")
+        return {}
     return shape(hook_event_name, replacement)
 
 

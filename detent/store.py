@@ -104,7 +104,7 @@ def put_file(path: str) -> str:
         digest = hashlib.sha256()
         size = 0
         with open(path, "rb") as src:
-            while chunk := src.read(1 << 20):
+            while chunk := src.read(1048576):
                 digest.update(chunk)
                 size += len(chunk)
                 view = memoryview(chunk)
