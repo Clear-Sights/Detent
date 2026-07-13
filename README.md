@@ -22,7 +22,7 @@ PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a state — sh
 |---|---|
 | `detent/contract.py` | the bound: Claude Code's documented hook schema as data, plus the three envelope types (rewrite dict / `Deny` / `Block` / advisory str) |
 | `detent/dispatch.py` | the pivot: one stdin→stdout hook entrypoint; `(event, tool)` table lookup; picks the envelope by return type, never by content |
-| `detent/moves.py` | the arms: every move is one composition **m = α∘φ∘π** — total projections, exact guards, typed envelope actions; 17 moves across three tiers, enforcement (pure), capture (write only to the store, atomically), and display (render-by-address at the screen boundary), each declaring its own station flows; coverage is a quotient, not an enumeration — wildcard rows bound EVERY tool's oversized output and gate the whole →WORLD class, including tools that don't exist yet |
+| `detent/moves.py` | the arms: every move is one composition **m = α∘φ∘π** — total projections, exact guards, typed envelope actions; 30 moves across three tiers, enforcement (pure), capture (write only to the store, atomically), and display (render-by-address at the screen boundary), each declaring its own station flows; coverage is a quotient, not an enumeration — wildcard rows bound EVERY tool's oversized output and gate the whole →WORLD class, including tools that don't exist yet |
 | `detent/store.py` | the substrate: content-addressed artifact store — `put`/`get`/`materialize`/`slice` + an append-only firing ledger; identical bytes coincide, so N concurrent writers need zero coordination |
 | `detent/cells.py` | the punchcard: the 20-cell coverage topology as data; the move rows are *derived* from each move's own flow declaration, reconciled against importable reality by tests — coverage drift is a red test, not a discovery |
 | `tests/test_laws.py` | the universal laws, one parametrized test each over ALL moves: guard totality, rewrite idempotence (m∘m = ⊥), store monotonicity (CALM: monotone ⇒ coordination-free) |
@@ -45,7 +45,7 @@ For development:
 pip install -e ".[test]"
 pytest -q          # the public smoke test: catalog certifies, dispatch rewrites and denies
                    # on the real wire, store round-trips, status runtime exits clean.
-                   # (The full 487-test falsifiability suite lives in the dev repo.)
+                   # (The full 390-test falsifiability suite lives in the dev repo.)
 python -m detent    # the status trace: wiring, 20-cell coverage, store stats; nonzero on drift
 ```
 
@@ -74,6 +74,16 @@ Edit form routes through the harness's own documented seam instead: the pre hook
 `permissionDecision: "defer"`, and the PermissionRequest hook applies the expansion as a
 condition of approval — before the client's validation. The Write form works at PreToolUse
 directly.)
+
+**The hard barrier.** The default is denial, not passthrough: `WebFetch`/`WebSearch` are refused
+outright, naming the deterministic substitute (`curl -o <path>`, then `Read <path>` — the page's
+actual bytes reach you directly, with no LLM-mediated extraction step hidden inside the tool);
+a Bash `curl`/`wget` with no declared output path is refused the same way (an unaddressed fetch
+streams straight into context, uninspectable). `mcp__*` tools are exempt from this specific law —
+a typed, structured action (open a PR, post a message) is a different problem than an opaque
+content fetch, and most environments have no deterministic substitute for the former. Measured,
+not asserted (`tools/measure.py`, replayed against a real session transcript): this barrier alone
+accounts for 30 denials that would otherwise have been silent, LLM-mediated fetches.
 
 Content search over the store needs no index: objects are plain files, so
 `grep -rl 'needle' ~/.claude/detent_store/objects/` (or the Grep tool on that directory)
