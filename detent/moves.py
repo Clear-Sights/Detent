@@ -250,6 +250,31 @@ def _captured_note(value: str, label: str, fallback: str) -> str:
             f"python3 -m detent.store slice {addr} <start> <end>")
 
 
+def _bash_simple_command_tokens(event: dict[str, Any]) -> list[str] | None:
+    """π, shared: an event's Bash command, tokenized — ⊥ (None) unless it is a single simple
+    command (no shell metacharacters, parses under shlex). Every Bash grammar check that needs
+    argv shares this one π, so the metacharacter/shlex judgment is made exactly once, not
+    re-decided per check.
+
+    Known, disclosed gap (pre-existing, not introduced here — inherited by every check sharing
+    this π): _SHELL_METACHARACTERS scans the RAW string, not shlex-aware of quoting, so a
+    command whose URL/argument merely CONTAINS one of |;&`<> — a query string with a second
+    parameter ("?a=1&b=2") is the common real case — reads as "not simple" and every check
+    built on this π silently skips it. Fails open (no false deny), but a check this bypassable
+    is a real check with a real hole, not a closed one; a quote-aware rewrite is future, scoped
+    work, not folded in here."""
+    command = _str_of(_input(event), "command")
+    if not command:
+        return None
+    if _SHELL_METACHARACTERS.search(command):
+        return None
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return None
+    return tokens or None
+
+
 def bash_deny_raw_grep_search(event: dict[str, Any]) -> Deny | None:
     """PreToolUse / Bash: deny a raw `grep`/`rg` invocation when it sits in an exact,
     losslessly-translatable grammar, naming the equivalent Grep-tool call in the reason. A type
@@ -271,15 +296,7 @@ def bash_deny_raw_grep_search(event: dict[str, Any]) -> Deny | None:
     worse than none. find/cat/head/tail/sed/awk are parked (the dev repo's docs/archive/EVENT-COVERAGE.md): sed/awk
     have no lossless translation at all; the rest need their own grammar, not a reuse of
     grep's."""
-    command = _str_of(_input(event), "command")
-    if not command:
-        return None
-    if _SHELL_METACHARACTERS.search(command):
-        return None
-    try:
-        tokens = shlex.split(command)
-    except ValueError:
-        return None
+    tokens = _bash_simple_command_tokens(event)
     if not tokens or tokens[0] not in ("grep", "rg"):
         return None
     binary = tokens[0]
@@ -324,6 +341,63 @@ def bash_deny_raw_grep_search(event: dict[str, Any]) -> Deny | None:
     return Deny(
         f"Denied: raw Bash '{tokens[0]}' is an exact-translatable search. Use the Grep tool "
         f"instead, with these exact parameters -- it answers the same query for free: {grep_call!r}")
+
+
+# BOUNDS's shape one level down: a binary set requires at least one token from a declared set
+# (a fetch needs a declared output path); absent, deny naming what's missing. Covering a future
+# binary (e.g. `dd` without `of=`) is one row, zero new code. "any_of" entries starting with
+# "--" also match their "=value" form (curl/wget both accept --output-document=<path>); short
+# flags (-o/-O) match by exact token identity OR as a letter inside a clustered single-dash
+# group (curl/wget's own clustering: "-sSo" means "-s -S -o").
+BASH_REQUIRED_TOKENS: dict[frozenset[str], dict[str, Any]] = {
+    frozenset({"curl", "wget"}): {
+        "any_of": ("-o", "-O", "--output", "--output-document"),
+        "reason": ("a fetch with no declared output path either streams straight into "
+                   "context (curl's default) or lands at an undeclared, derived filename "
+                   "(wget's default) -- neither is addressed. Add -o/-O <path> (curl) or "
+                   "-O <path> (wget), then Read <path> -- bounded and addressed like any "
+                   "other read."),
+    },
+}
+_SHORT_FLAG_CLUSTER_RX = re.compile(r"\A-[A-Za-z]+\Z")
+
+
+def _has_required_token(tokens: list[str], any_of: tuple[str, ...]) -> bool:
+    """φ: does any token equal one of `any_of`, appear as a letter inside a clustered
+    single-dash short-flag group, or (for a "--" long flag) start with "<flag>=" —
+    curl/wget's --output-document=<path> form.
+
+    Known, disclosed gap (not this row's writ to close): an output flag whose own argument is
+    a bare "-" (curl/wget's stdout marker, e.g. `wget -qO -`) still counts as present here —
+    this checks for a declared destination TOKEN, not what the destination resolves to."""
+    short_letters = {f[1:] for f in any_of if len(f) == 2 and f.startswith("-") and f != "--"}
+    for t in tokens:
+        for flag in any_of:
+            if flag.startswith("--"):
+                if t == flag or t.startswith(flag + "="):
+                    return True
+            elif t == flag:
+                return True
+        if _SHORT_FLAG_CLUSTER_RX.match(t) and any(letter in t[1:] for letter in short_letters):
+            return True
+    return False
+
+
+def bash_deny_missing_required_token(event: dict[str, Any]) -> Deny | None:
+    """PreToolUse / Bash: argv[0] in a declared BASH_REQUIRED_TOKENS binary set requires at
+    least one token from that row's `any_of` set; absent, deny with the row's reason.
+
+    Does NOT touch: binaries not named in any row, or an invocation that already carries one
+    of the row's required tokens."""
+    tokens = _bash_simple_command_tokens(event)
+    if not tokens:
+        return None
+    for binaries, row in BASH_REQUIRED_TOKENS.items():
+        if tokens[0] in binaries:
+            if _has_required_token(tokens[1:], row["any_of"]):
+                return None
+            return Deny(f"Denied: {row['reason']}")
+    return None
 
 
 def subagent_warm_start(event: dict[str, Any]) -> str | None:
@@ -794,6 +868,39 @@ def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
     return None
 
 
+# The model decides; it never transports. A precise, per-tool deterministic substitute for
+# every non-mcp WORLD tool named here — mcp__* is exempt from this specific law by simply
+# never appearing in the table: a typed, structured action call (create a PR, post a message)
+# is a different problem than an opaque content fetch, and this environment has no substitute
+# for the former. Covering a future non-mcp WORLD tool is one row, zero new code.
+WORLD_ALTERNATIVES: dict[str, str] = {
+    "WebFetch": ("fetch the URL with Bash: curl -sS <url> -o <path>, then Read <path> -- the "
+                "page's actual content (including any embedded script-tag data) reaches you "
+                "directly, bounded and addressed, with no LLM-mediated extraction step hidden "
+                "inside the tool."),
+    "WebSearch": ("fetch the search engine's own results URL with Bash: curl -sS <results-url> "
+                 "-o <path>, then Read <path> -- ranking happens server-side at the search "
+                 "backend, the same as any other deterministic web response."),
+}
+
+
+def world_deny_nondeterministic(event: dict[str, Any]) -> Deny | None:
+    """PreToolUse / WebFetch, WebSearch (and any future non-mcp WORLD tool named in
+    WORLD_ALTERNATIVES): deny the call outright, naming its precise deterministic substitute —
+    the model deciding to fetch is fine; the model transporting WORLD bytes back through a
+    non-deterministic, LLM-mediated tool call is exactly what this barrier exists to stop.
+
+    Does NOT touch: mcp__* (never in the table — see above), or any tool not yet named in
+    WORLD_ALTERNATIVES (a future WORLD tool with no substitute named passes through untouched
+    — silence, not a guess)."""
+    name = event.get("tool_name")
+    alt = WORLD_ALTERNATIVES.get(name) if isinstance(name, str) else None
+    if alt is None:
+        return None
+    return Deny(f"Denied: {name} transports WORLD content through a non-deterministic, "
+                f"LLM-mediated path. Use a deterministic acquisition instead -- {alt}")
+
+
 # ── the eight cell functions — ONE per punchcard cell, by owner's law (2026-07-10) ─────────
 # Every hook-served cell lists exactly one function; one function may serve several cells only
 # where provenance is undecidable at the wildcard (pinned in BEDROCK). Each is a thin event-
@@ -813,7 +920,7 @@ def into_context(event: dict[str, Any]) -> dict[str, Any] | Deny | None:
             # Gate before rewrite, same law-first ordering lookup() enforces between MOVES
             # rows: a future BOUNDS row for Bash could otherwise silently shadow this deny —
             # a table edit must never be able to open a private route around a gate.
-            return bash_deny_raw_grep_search(event)
+            return bash_deny_raw_grep_search(event) or bash_deny_missing_required_token(event)
         row = BOUNDS.get(tool) if isinstance(tool, str) else None
         if row is not None:
             return _bound_absent_key(event, row)
@@ -863,8 +970,10 @@ def context_to_workspace(event: dict[str, Any]) -> dict[str, Any] | Defer | Deny
 @_flows("CONTEXT→WORLD", "STORE→WORLD")
 def context_to_world(event: dict[str, Any]) -> Deny | None:
     """Cells 18 and 16 (gate leg) — the entire →WORLD tool class gated on exact secret
-    grammars; transport of stored artifacts outward is store.get (spec-invoked)."""
-    return outbound_deny_secret_pattern(event)
+    grammars; WebFetch/WebSearch additionally denied outright with their deterministic
+    substitute named (WORLD_ALTERNATIVES) — mcp__* exempt from that second law, still
+    secret-scanned; transport of stored artifacts outward is store.get (spec-invoked)."""
+    return outbound_deny_secret_pattern(event) or world_deny_nondeterministic(event)
 
 
 @_flows("CONTEXT→USER")
