@@ -66,9 +66,12 @@ _BASE: dict[int, dict] = {
                            "quote-transport gate was measured (0.0% of output) and declined "
                            "by the benefit rule."},
     18: {"flow": "CONTEXT→WORLD",     "status": "PARTIAL", "ceiling": "boundary",
-         "ceiling_reason": "the exact slice is total (secret grammars over the entire →WORLD "
-                           "class); deciding which outbound CLAIMS need receipts is judgment "
-                           "— the sibling faculty's writ."},
+         "ceiling_reason": "WebFetch/WebSearch are denied outright with a named deterministic "
+                           "substitute (mcp__* exempt — no substitute exists for a typed "
+                           "action); deciding which outbound CLAIMS need receipts is judgment "
+                           "— the sibling faculty's writ. Outbound secret-pattern scanning "
+                           "moved to Ward (2026-07-13): an unconditional deny with no "
+                           "deterministic substitute is Ward's charter, not this cell's."},
     19: {"flow": "CONTEXT→WORKSPACE", "status": "SERVED"},
     20: {"flow": "CONTEXT→STORE",     "status": "SERVED"},
 }
