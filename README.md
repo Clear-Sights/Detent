@@ -22,7 +22,7 @@ PARTIAL-with-named-machinery, or VOID-with-reason; silence is not a state — sh
 |---|---|
 | `detent/contract.py` | the bound: Claude Code's documented hook schema as data, plus the three envelope types (rewrite dict / `Deny` / `Block` / advisory str) |
 | `detent/dispatch.py` | the pivot: one stdin→stdout hook entrypoint; `(event, tool)` table lookup; picks the envelope by return type, never by content |
-| `detent/moves.py` | the arms: every move is one composition **m = α∘φ∘π** — total projections, exact guards, typed envelope actions; 30 moves across three tiers, enforcement (pure), capture (write only to the store, atomically), and display (render-by-address at the screen boundary), each declaring its own station flows; coverage is a quotient, not an enumeration — wildcard rows bound EVERY tool's oversized output and gate the whole →WORLD class, including tools that don't exist yet |
+| `detent/moves.py` | the arms: every move is one composition **m = α∘φ∘π** — total projections, exact guards, typed envelope actions; 29 moves across three tiers, enforcement (pure), capture (write only to the store, atomically), and display (render-by-address at the screen boundary), each declaring its own station flows; coverage is a quotient, not an enumeration — wildcard rows bound EVERY tool's oversized output and gate the whole →WORLD class, including tools that don't exist yet |
 | `detent/store.py` | the substrate: content-addressed artifact store — `put`/`get`/`materialize`/`slice` + an append-only firing ledger; identical bytes coincide, so N concurrent writers need zero coordination |
 | `detent/cells.py` | the punchcard: the 20-cell coverage topology as data; the move rows are *derived* from each move's own flow declaration, reconciled against importable reality by tests — coverage drift is a red test, not a discovery |
 | `tests/test_laws.py` | the universal laws, one parametrized test each over ALL moves: guard totality, rewrite idempotence (m∘m = ⊥), store monotonicity (CALM: monotone ⇒ coordination-free) |
@@ -45,7 +45,7 @@ For development:
 pip install -e ".[test]"
 pytest -q          # the public smoke test: catalog certifies, dispatch rewrites and denies
                    # on the real wire, store round-trips, status runtime exits clean.
-                   # (The full 390-test falsifiability suite lives in the dev repo.)
+                   # (The full 387-test falsifiability suite lives in the dev repo.)
 python -m detent    # the status trace: wiring, 20-cell coverage, store stats; nonzero on drift
 ```
 
@@ -58,17 +58,19 @@ the operand, never the predicate shape: a truncate-keep spanning the threshold (
 per hook invocation (interpreter startup dominates).
 
 **Pointers, not transport.** The model may emit a reference where bytes it did not originate
-belong, and machinery does the copy/paste (measured motivation: 11.5% of one build session's
-entire model output was `old_string` anchor transport — bytes already on disk, re-typed to
-point at them). A Write whose content is exactly `detent://<addr>` materializes those store
-bytes (verified live: 73 output characters, arbitrary payload). An Edit whose old_string is
-exactly `detent://L<a>-<b>` expands to those lines of the target file, then faces the same
-cardinality gate as a typed anchor. Fragments paste by range: `detent://<addr>:L<a>-<b>` as a
-Write's content or an Edit's new_string materializes exactly those lines of the stored
-artifact — copy a piece of anything that ever existed, in one pointer. And the pointers work
-for the human too: type `detent://<addr>` (or `:L<a>-<b>`) anywhere in a prompt and the hook
-pushes the bytes to the model — measured motivation: 7.6% of one session's user-prompt bytes
-were re-pastes of lines already in context. Dangling references are named, never dropped.
+belong, and machinery does the copy/paste (measured motivation: 70,663 chars of `old_string` —
+11.5% of one build session's total model-output characters, not billed output tokens — was
+anchor transport: bytes already on disk, re-typed to point at them; a thinking-inclusive token
+denominator shrinks the share, not the chars). A Write whose content is exactly
+`detent://<addr>` materializes those store bytes (verified live: 73 output characters,
+arbitrary payload). An Edit whose old_string is exactly `detent://L<a>-<b>` expands to those
+lines of the target file, then faces the same cardinality gate as a typed anchor. Fragments
+paste by range: `detent://<addr>:L<a>-<b>` as a Write's content or an Edit's new_string
+materializes exactly those lines of the stored artifact — copy a piece of anything that ever
+existed, in one pointer. And the pointers work for the human too: type `detent://<addr>` (or
+`:L<a>-<b>`) anywhere in a prompt and the hook pushes the bytes to the model — measured
+motivation: 7.6% of one session's user-prompt bytes were re-pastes of lines already in context.
+Dangling references are named, never dropped.
 (Current Claude Code versions validate Edit input before PreToolUse rewrites apply, so the
 Edit form routes through the harness's own documented seam instead: the pre hook answers
 `permissionDecision: "defer"`, and the PermissionRequest hook applies the expansion as a
@@ -107,8 +109,13 @@ isn't a Detent move; `LAW.md`'s five-clause test decides, not taste.
 Apache-2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The explicit patent grant is
 deliberate: this is infrastructure meant to be adopted, embedded, and ported.
 
-## Sibling
+## Siblings
 
-[Makoto](https://github.com/Clear-Sights/Makoto) holds the agent to its word (integrity gates —
-judgment-shaped checks); Detent holds the machinery to determinism (no judgment anywhere). The
-two never import each other; Detent reads Makoto's chain by shape only.
+[Makoto](https://github.com/Clear-Sights/Makoto) holds the agent to its word (sincerity —
+judgment-shaped integrity gates); Detent holds the machinery to determinism (no judgment
+anywhere); [Ward](https://github.com/Clear-Sights/Ward) is the third pillar — is this action
+dangerous regardless of intent or honesty (exact, no-substitute hard denies: weakened TLS/JWT
+verification, protected-path writes, secret leaks). None of the three import each other; each
+reads the others' shape only, never their code. `outbound_deny_secret_pattern` moved from here to
+Ward, 2026-07-13 — it denied unconditionally with no deterministic substitute, which was never
+this project's charter.

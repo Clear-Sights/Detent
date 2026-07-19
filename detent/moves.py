@@ -827,45 +827,13 @@ def display_materialize_citations(event: dict[str, Any]) -> str | None:
     return out if out != delta else None
 
 
-# Exact secret grammars for outbound payloads. Fixed prefixes/formats only — no entropy
-# scoring, no ML, no judgment (those fail the admission test outright). The deny reason names
-# the pattern KIND, never the matched text: a deny must not re-emit the secret it caught.
-_SECRET_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
-    ("GitHub personal access token", re.compile(r"ghp_[A-Za-z0-9]{36}")),
-    ("GitHub fine-grained token", re.compile(r"github_pat_[A-Za-z0-9_]{22,}")),
-    ("private key block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
-    ("AWS access key id", re.compile(r"AKIA[0-9A-Z]{16}")),
-    ("Anthropic API key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
-)
-
-
 def _is_world_tool(name: str) -> bool:
     """φ: the →WORLD tool class, as an exact predicate instead of an enumerated row list.
     Every mcp__* tool is WORLD by BEDROCK's own pinned convention (MCP servers are WORLD even
-    if local); WebFetch/WebSearch reach the network by definition (a secret in a fetch URL is
-    query-param exfiltration). Local tools (Bash, Edit, Write, Read, Grep) are excluded
-    exactly — rotating a real credential inside the workspace is legitimate work, and a live
-    session measured real false positives when this scope was wider."""
+    if local); WebFetch/WebSearch reach the network by definition. Local tools (Bash, Edit,
+    Write, Read, Grep) are excluded exactly — a live session measured real false positives
+    when this scope was wider."""
     return name.startswith("mcp__") or name in ("WebFetch", "WebSearch")
-
-
-def outbound_deny_secret_pattern(event: dict[str, Any]) -> Deny | None:
-    """PreToolUse / * (enforcement, wildcard row): deny publishing a payload matching an exact
-    secret grammar through ANY →WORLD-class tool — membership decided by _is_world_tool's
-    predicate, never by an enumerated row list that a new MCP server silently escapes. The
-    reason names the pattern kind only — never the match.
-
-    Does NOT touch: non-WORLD tools (exactly — see _is_world_tool), payloads matching no
-    grammar (fail open — a tripwire, not a scanner with opinions)."""
-    name = event.get("tool_name")
-    if not isinstance(name, str) or not _is_world_tool(name):
-        return None
-    blob = json.dumps(_input(event))
-    for kind, pattern in _SECRET_PATTERNS:
-        if pattern.search(blob):
-            return Deny(f"Denied: outbound payload matches the {kind} pattern. Redact the "
-                        f"credential (and rotate it if real), then retry.")
-    return None
 
 
 # The model decides; it never transports. A precise, per-tool deterministic substitute for
@@ -969,11 +937,13 @@ def context_to_workspace(event: dict[str, Any]) -> dict[str, Any] | Defer | Deny
 
 @_flows("CONTEXT→WORLD", "STORE→WORLD")
 def context_to_world(event: dict[str, Any]) -> Deny | None:
-    """Cells 18 and 16 (gate leg) — the entire →WORLD tool class gated on exact secret
-    grammars; WebFetch/WebSearch additionally denied outright with their deterministic
-    substitute named (WORLD_ALTERNATIVES) — mcp__* exempt from that second law, still
-    secret-scanned; transport of stored artifacts outward is store.get (spec-invoked)."""
-    return outbound_deny_secret_pattern(event) or world_deny_nondeterministic(event)
+    """Cells 18 and 16 (gate leg) — WebFetch/WebSearch denied outright with their
+    deterministic substitute named (WORLD_ALTERNATIVES); mcp__* exempt from that law (a
+    typed, structured action has no substitute); transport of stored artifacts outward is
+    store.get (spec-invoked). Outbound secret-pattern scanning moved to Ward (2026-07-13):
+    it denies unconditionally with no deterministic substitute, which is Ward's charter, not
+    Detent's — see Ward's README for the check itself."""
+    return world_deny_nondeterministic(event)
 
 
 @_flows("CONTEXT→USER")
